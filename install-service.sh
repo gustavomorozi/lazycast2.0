@@ -16,8 +16,10 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# Caminho do diretório do LazyCast
-LAZYCAST_DIR="/home/pi/lazycast2.0"
+# Caminho do diretório do LazyCast (diretório onde este script está)
+LAZYCAST_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Usuário que executará o serviço (quem chamou o sudo)
+LAZYCAST_USER="${SUDO_USER:-pi}"
 
 # Verificar se o diretório existe
 if [ ! -d "$LAZYCAST_DIR" ]; then
@@ -30,8 +32,11 @@ fi
 echo "Copiando arquivo de serviço systemd..."
 cp "$LAZYCAST_DIR/lazycast.service" /etc/systemd/system/
 
-# Ajustar caminho no arquivo de serviço se necessário
+# Ajustar caminho e usuário no arquivo de serviço
 sed -i "s|/home/pi/lazycast2.0|$LAZYCAST_DIR|g" /etc/systemd/system/lazycast.service
+sed -i "s|^User=.*|User=$LAZYCAST_USER|" /etc/systemd/system/lazycast.service
+echo "Diretório: $LAZYCAST_DIR"
+echo "Usuário: $LAZYCAST_USER"
 
 # Tornar scripts executáveis
 echo "Tornando scripts executáveis..."

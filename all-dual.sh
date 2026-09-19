@@ -49,26 +49,26 @@ start_display_instance() {
     local player_select=$6
     local interface_suffix=$7
     
-    echo "Iniciando instância para $display_name..."
+    echo "Iniciando instância para $display_name..." >&2
     
     # Criar diretório temporário para esta instância
     local instance_dir="lazycast_instance_$interface_suffix"
-    mkdir -p "$instance_dir"
-    cd "$instance_dir"
+    mkdir -p "$instance_dir/player" "$instance_dir/h264" "$instance_dir/control"
+    cd "$instance_dir" || return 1
     
-    # Copiar arquivos necessários
+    # Copiar arquivos necessários (d2.py espera os binários em ./player, ./h264 e ./control)
     cp ../d2.py .
-    cp ../player/player.bin . 2>/dev/null || true
-    cp ../h264/h264.bin . 2>/dev/null || true
-    cp ../control/control.bin . 2>/dev/null || true
-    cp ../control/controlhidc.bin . 2>/dev/null || true
+    cp ../player/player.bin player/ 2>/dev/null || true
+    cp ../h264/h264.bin h264/ 2>/dev/null || true
+    cp ../control/control.bin control/ 2>/dev/null || true
+    cp ../control/controlhidc.bin control/ 2>/dev/null || true
     
     # Modificar configurações no d2.py
     sed -i "s/^player_select = .*/player_select = $player_select/" d2.py
     sed -i "s/^sound_output_select = .*/sound_output_select = $sound_output/" d2.py
     
-    # Criar log específico
-    local log_file="$instance_dir/lazycast_$interface_suffix.log"
+    # Criar log específico (caminho relativo ao diretório da instância)
+    local log_file="lazycast_$interface_suffix.log"
     
     # Iniciar processo em background
     (
@@ -146,6 +146,7 @@ start_display_instance() {
             sleep 3
             sudo busybox udhcpd ./udhcpd_$interface_suffix.conf 
             
+            echo "The display is ready"
             echo "Display $display_name está pronto"
             echo "Seu dispositivo é chamado: $display_name"
             
@@ -164,10 +165,11 @@ start_display_instance() {
     ) > "$log_file" 2>&1 &
     
     local pid=$!
-    echo "Instância $display_name iniciada (PID: $pid)"
-    echo "Log: $log_file"
+    echo "Instância $display_name iniciada (PID: $pid)" >&2
+    echo "Log: $instance_dir/$log_file" >&2
     
     cd ..
+    # Somente o PID vai para stdout, pois o chamador captura a saída com $(...)
     echo $pid
 }
 
@@ -193,7 +195,7 @@ echo "Para parar os displays, pressione Ctrl+C"
 echo ""
 
 # Aguardar sinais de interrupção
-trap "echo 'Parando displays...'; kill $display1_pid $display2_pid 2>/dev/null; exit 0" INT TERM
+trap 'echo "Parando displays..."; kill $display1_pid $display2_pid 2>/dev/null; exit 0' INT TERM
 
 while true; do
     sleep 10

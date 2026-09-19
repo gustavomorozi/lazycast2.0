@@ -286,7 +286,6 @@ Para redirecionar entradas de mouse e teclado no Pi, primeiro instale evdev (``p
 - `clear_pairing.sh` - Limpa informações de pareamento antigas
 - `player_health_check.sh` - Verifica saúde dos players
 - `check_dependencies.sh` - Verifica dependências do sistema
-- `bugfix-improvements.sh` - Aplica todas as correções automaticamente
 
 ## Problemas Conhecidos Restantes
 

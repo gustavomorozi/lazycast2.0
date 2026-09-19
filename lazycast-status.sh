@@ -6,8 +6,8 @@
 #
 #################################################################################
 
-LAZYCAST_DIR="/home/pi/lazycast2.0"
-cd "$LAZYCAST_DIR" 2>/dev/null || cd "$(dirname "$0")"
+LAZYCAST_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$LAZYCAST_DIR" || exit 1
 
 # Carregar configurações
 if [ -f lazycast-config.conf ]; then

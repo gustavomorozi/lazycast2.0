@@ -18,7 +18,6 @@ import socket
 import fcntl, os
 import errno
 import threading
-from threading import Thread
 import time
 from time import sleep
 import sys
@@ -44,17 +43,8 @@ display_power_management = 0
 
 parser = argparse.ArgumentParser()
 parser.add_argument('arg1', nargs='?', default='192.168.173.80')
-parser.add_argument('--config', help='Caminho para arquivo de configuração')
 args = parser.parse_args()
 sourceip = vars(args)['arg1']
-
-# Carregar configurações adicionais se disponível
-config_file = args.config if args.config else 'lazycast-config.conf'
-if os.path.exists(config_file):
-    import configparser
-    config = configparser.ConfigParser()
-    config.read(config_file)
-    # Aqui poderíamos carregar configurações adicionais do arquivo
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_address = (sourceip, 7236)
@@ -465,6 +455,7 @@ print("-------->\n" + data)
 
 print("---- Negotiation successful ----")
 
+sock.settimeout(None)
 fcntl.fcntl(sock, fcntl.F_SETFL, os.O_NONBLOCK)
 fcntl.fcntl(idrsock, fcntl.F_SETFL, os.O_NONBLOCK)
 
@@ -492,7 +483,7 @@ while True:
 						sleep(0.5)
 					else:
 						watchdog = watchdog + 1
-						if watchdog >= 7000:  # Corrigido de 70/0.01
+						if watchdog >= 7000:
 							killall(True)
 							sleep(1)
 							break

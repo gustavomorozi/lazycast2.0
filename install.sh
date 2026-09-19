@@ -24,9 +24,11 @@ fi
 # Detectar modelo do Raspberry Pi
 echo "Detectando modelo do Raspberry Pi..."
 CPU_INFO=$(grep Hardware /proc/cpuinfo)
-echo "Info do CPU: $CPU_INFO"
+PI_MODEL=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null)
+echo "Info do CPU: ${CPU_INFO:-n/a}"
+echo "Modelo: ${PI_MODEL:-desconhecido}"
 
-if [[ "$CPU_INFO" == *"BCM2712"* ]]; then
+if [[ "$CPU_INFO" == *"BCM2712"* ]] || [[ "$PI_MODEL" == *"Raspberry Pi 5"* ]]; then
     echo "✓ Raspberry Pi 5 detectado - Suporte dual HDMI disponível"
     PI5_DETECTED=true
 else
@@ -192,6 +194,11 @@ EOF
 
 echo "✓ Arquivo de configuração criado: lazycast-config.conf"
 
+# O arquivo foi criado como root; devolver a posse ao usuário que chamou o sudo
+if [ -n "$SUDO_USER" ]; then
+    chown "$SUDO_USER":"$(id -gn "$SUDO_USER")" lazycast-config.conf
+fi
+
 # Compilar o projeto
 echo ""
 echo "Compilando o projeto..."
@@ -205,10 +212,10 @@ else
 fi
 
 # Tornar scripts executáveis
-chmod +x all.sh
-chmod +x install.sh
-chmod +x d2.py
-chmod +x project.py
+chmod +x all.sh all-dual.sh install.sh install-service.sh setup-hdmi.sh
+chmod +x lazycast-background.sh lazycast-status.sh
+chmod +x clear_pairing.sh player_health_check.sh check_dependencies.sh
+chmod +x d2.py d2-multi.py project.py
 
 echo ""
 echo "=========================================="
@@ -227,7 +234,7 @@ read -p "Deseja instalar o serviço de inicialização automática no boot? (S/n
 if [[ ! "$install_service" =~ ^[Nn]$ ]]; then
     echo ""
     echo "Instalando serviço systemd..."
-    sudo ./install-service.sh
+    ./install-service.sh
 else
     echo ""
     echo "Serviço não instalado. Você pode instalar depois com:"

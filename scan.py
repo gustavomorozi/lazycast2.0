@@ -19,7 +19,7 @@ while loop:
         elif 'Cell' in line:
             display = False
         if display:
-            print line,
+            print(line, end='')
 
 
 
