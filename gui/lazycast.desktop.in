@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=LazyCast
+GenericName=Receptor de tela sem fio
+Comment=Veja o estado do display Miracast e ajuste as configurações
+Exec=python3 @DIR@/gui/lazycast-gui.py
+Icon=video-display
+Terminal=false
+Categories=AudioVideo;Video;Network;
+Keywords=miracast;wifi direct;tela;espelhar;

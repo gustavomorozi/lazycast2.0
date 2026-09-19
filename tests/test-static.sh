@@ -73,6 +73,12 @@ check "detecção de adaptadores (tests/test-adapters.sh)" bash tests/test-adapt
 check "all.sh suporta grupo compartilhado (SHARED_SLOTS)" bash -c "grep -q SHARED_SLOTS all.sh && grep -q 'SHARED_SLOTS=2 exec ./all.sh' all-dual.sh"
 check "watch_dhcp_release libera quando qualquer aparelho sai" grep -q 'n" -lt "$prev"' lib-p2p.sh
 
+check "GUI: testes da camada de dados (tests/test_gui_backend.py)" bash -c "python3 tests/test_gui_backend.py || python tests/test_gui_backend.py"
+check "GUI: atalho de menu e instalador" bash -c "grep -q lazycast-gui.py gui/lazycast.desktop.in && grep -q lazycast.desktop install.sh"
+check "GUI: compila" bash -c "python3 -m py_compile gui/lazycast-gui.py gui/backend.py || python -m py_compile gui/lazycast-gui.py gui/backend.py"
+
+check "scripts definem o nome da rede (p2p_ssid_postfix)" bash -c "grep -q set_p2p_network_name all.sh && grep -q set_p2p_network_name all-dual.sh && grep -q 'p2p_ssid_postfix' lib-p2p.sh"
+
 # Serviço: ambiente de sessão presente (evita dbus-launch órfão)
 check "lazycast.service define XDG_RUNTIME_DIR e D-Bus" bash -c "grep -q XDG_RUNTIME_DIR lazycast.service && grep -q DBUS_SESSION_BUS_ADDRESS lazycast.service"
 check "background usa timeout no notify-send" grep -q 'timeout 5 notify-send' lazycast-background.sh

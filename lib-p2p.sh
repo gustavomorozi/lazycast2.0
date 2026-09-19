@@ -258,3 +258,29 @@ write_vlc_layout() {
     sleep 1
     return 0
 }
+
+# Nome padrão do display: LazyCast-<animal em inglês> aleatório (ex.: LazyCast-Fox), sorteado a cada
+# instalação nova; a reinstalação mantém o nome existente. Pode ser trocado depois no painel gráfico
+# (aba Configurações) ou em DISPLAY1_NAME no lazycast-config.conf.
+LAZYCAST_ANIMALS=(Fox Wolf Bear Eagle Tiger Lion Panda Koala Otter Falcon Dolphin Whale Shark Turtle
+    Rabbit Deer Moose Bison Lynx Puma Jaguar Leopard Cheetah Hawk Owl Raven Swan Heron Crane Penguin
+    Seal Walrus Badger Beaver Hedgehog Squirrel Gecko Iguana Cobra Camel Llama Alpaca Zebra Giraffe
+    Rhino Hippo Gorilla Monkey Lemur Sloth Ferret Marten Panther Bobcat Coyote Gazelle Antelope Pelican)
+random_animal_name() {
+    echo "LazyCast-${LAZYCAST_ANIMALS[RANDOM % ${#LAZYCAST_ANIMALS[@]}]}"
+}
+
+# Nome da REDE: o SSID do grupo Wi-Fi Direct é "DIRECT-xy" + p2p_ssid_postfix. Com o postfix, a rede
+# aparece como DIRECT-D9-LazyCast-Gecko em qualquer lista de Wi-Fi (testado no Pi 5; o Windows/Android
+# listam o receptor pelo device_name, que recebe o mesmo nome). O SSID tem no máx. 32 bytes, e
+# "DIRECT-xy" ocupa 9: o postfix ("-" + nome) fica limitado a 23 caracteres.
+network_postfix() {
+    local n
+    n=$(printf '%s' "$1" | tr ' ' '-' | tr -cd 'A-Za-z0-9._-')
+    printf -- '-%s' "${n:0:22}"
+}
+
+# uso: set_p2p_network_name <p2p-dev> <nome>   (o "--" evita que o wpa_cli leia o "-" como opção)
+set_p2p_network_name() {
+    sudo wpa_cli -i "$1" -- set p2p_ssid_postfix "$(network_postfix "$2")" >/dev/null
+}
