@@ -224,7 +224,7 @@ int main(int argc, char **argv)
 	{
 		sourceip = argv[2];
 	}
-	printf("sourceip:%u\n", sourceip);
+	printf("sourceip:%s\n", sourceip);
 	
 
 	if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
@@ -287,7 +287,7 @@ int main(int argc, char **argv)
 		{
 			senddes = 100;
 #ifdef fdsend
-			printf("senddes:%d\n", send(fd, reportdescriptor, sizeof(reportdescriptor), 0));
+			printf("senddes:%d\n", (int)send(fd, reportdescriptor, sizeof(reportdescriptor), 0));
 #endif
 		}
 
@@ -324,7 +324,7 @@ int main(int argc, char **argv)
 				keyboardinput[11] = 0;
 			printf("KeyPress:%d\n", keyin);
 #ifdef fdsend
-			printf("send:%d\n", send(fd, keyboardinput, sizeof(keyboardinput), 0));
+			printf("send:%d\n", (int)send(fd, keyboardinput, sizeof(keyboardinput), 0));
 #endif
 
 		}
@@ -351,7 +351,7 @@ int main(int argc, char **argv)
 				keyboardinput[11] = 0;
 			printf("KeyRelease:%d\n", keyin);
 #ifdef fdsend
-			printf("send:%d\n", send(fd, keyboardinput, sizeof(keyboardinput), 0));
+			printf("send:%d\n", (int)send(fd, keyboardinput, sizeof(keyboardinput), 0));
 #endif
 		}
 		else if (e.type == ButtonPress)
@@ -389,7 +389,7 @@ int main(int argc, char **argv)
 			
 
 #ifdef fdsend			
-			printf("send:%d\n", send(fd, mouseinput, sizeof(mouseinput), 0));
+			printf("send:%d\n", (int)send(fd, mouseinput, sizeof(mouseinput), 0));
 #endif
 		}
 		else if (e.type == ButtonRelease)
@@ -425,7 +425,7 @@ int main(int argc, char **argv)
 				mouseinput[12] = 0;
 			}
 #ifdef fdsend
-			printf("send:%d\n", send(fd, mouseinput, sizeof(mouseinput), 0));
+			printf("send:%d\n", (int)send(fd, mouseinput, sizeof(mouseinput), 0));
 #endif
 		}
 		else if (e.type == MotionNotify)
@@ -470,7 +470,7 @@ int main(int argc, char **argv)
 			//for (int i = 0; i < sizeof(mouseinput); i++)
 				//printf("%d,",mouseinput[i]);
 #ifdef fdsend
-			printf("send:%d\n", send(fd, mouseinput, sizeof(mouseinput), 0));
+			printf("send:%d\n", (int)send(fd, mouseinput, sizeof(mouseinput), 0));
 #endif 
 		}
 

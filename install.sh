@@ -97,14 +97,26 @@ echo "  Configuração de Player"
 echo "=========================================="
 echo ""
 echo "Selecione o player:"
-echo "1) player1 (menor latência)"
-echo "2) player2 (melhor para imagens estáticas e som)"
-echo "3) omxplayer (para Android)"
-echo "0) VLC/GStreamer (não-RPi)"
+echo "1) player1 (menor latência, OpenMAX — Pi 1–4 32-bit)"
+echo "2) player2 (imagens estáticas e som, OpenMAX — Pi 1–4 32-bit)"
+echo "3) omxplayer (para Android, OpenMAX legado)"
+echo "0) VLC/GStreamer (recomendado no Raspberry Pi 5 / 64-bit)"
 echo ""
 
-read -p "Escolha (0-3) [2]: " player_choice
-PLAYER_SELECT=${player_choice:-2}
+if [ "$PI5_DETECTED" = true ]; then
+    echo "Raspberry Pi 5: OpenMAX/ilclient não são suportados neste hardware."
+    echo "Use a opção 0 (VLC/GStreamer). As opções 1–3 falham na compilação ou em runtime."
+    echo ""
+    read -p "Escolha (0-3) [0]: " player_choice
+    PLAYER_SELECT=${player_choice:-0}
+    if [ "$PLAYER_SELECT" != "0" ]; then
+        echo "⚠ Player $PLAYER_SELECT não é suportado no Raspberry Pi 5. Usando 0 (VLC/GStreamer)."
+        PLAYER_SELECT=0
+    fi
+else
+    read -p "Escolha (0-3) [2]: " player_choice
+    PLAYER_SELECT=${player_choice:-2}
+fi
 
 echo ""
 echo "=========================================="
@@ -202,13 +214,33 @@ fi
 # Compilar o projeto
 echo ""
 echo "Compilando o projeto..."
-make
 
-if [ $? -eq 0 ]; then
+# control (HID/teclado) é necessário em todos os modos
+make -C control/.
+CONTROL_OK=$?
+
+OMX_OK=0
+if [ "$PLAYER_SELECT" = "1" ] || [ "$PLAYER_SELECT" = "2" ] || [ "$PLAYER_SELECT" = "3" ]; then
+    echo "Compilando backends OpenMAX (h264/player)..."
+    make -C h264/. && make -C player/.
+    OMX_OK=$?
+else
+    echo "Player VLC/GStreamer selecionado — pulando compilação OpenMAX (h264/player)."
+fi
+
+if [ "$CONTROL_OK" -eq 0 ] && [ "$OMX_OK" -eq 0 ]; then
     echo "✓ Compilação concluída com sucesso"
 else
     echo "✗ Erro na compilação"
     exit 1
+fi
+
+# Garantir que o usuário do serviço consiga gravar logs e configs
+if [ -n "$SUDO_USER" ]; then
+    chown -R "$SUDO_USER":"$(id -gn "$SUDO_USER")" .
+    touch lazycast-background.log
+    chown "$SUDO_USER":"$(id -gn "$SUDO_USER")" lazycast-background.log
+    chmod 664 lazycast-background.log
 fi
 
 # Tornar scripts executáveis
