@@ -1,65 +1,66 @@
-lazycast: A Simple Wireless Display Receiver
+lazycast: Um Receptor Wireless Display Simples
 
-## LazyCast Dual Display - Raspberry Pi 5 Support
+## LazyCast Dual Display - Suporte para Raspberry Pi 5
 
-**NEW FEATURE**: LazyCast agora suporta modo dual display para Raspberry Pi 5, permitindo dois receptores independentes, um para cada saída HDMI (HDMI-1 e HDMI-2).
+**NOVA FUNCIONALIDADE**: LazyCast agora suporta modo dual display para Raspberry Pi 5, permitindo dois receptores independentes, um para cada saída HDMI (HDMI-1 e HDMI-2).
 
-# Description
-lazycast is a simple wifi display receiver. It was originally targeted Raspberry Pi (as display) and Windows 8.1/10 (as source), but it **might** also work on other Linux platforms and Miracast sources. (For other Linux systems, skip the preparation section. For video playback from Android sources, modify the ``player_select`` option in ``d2.py``.) For Windows 10 systems, the Miracast over Infrastructure (**MICE**) feature is also supported, which may provide better user experiences. In general, lazycast does not require re-compilation of wpa_supplicant to support various p2p functionalities, and should work on an "out of the box" Raspberry Pi.
+# Descrição
+lazycast é um receptor de display WiFi simples. Foi originalmente desenvolvido para Raspberry Pi (como display) e Windows 8.1/10 (como fonte), mas **pode** também funcionar em outras plataformas Linux e fontes Miracast. (Para outros sistemas Linux, pule a seção de preparação. Para reprodução de vídeo de fontes Android, modifique a opção ``player_select`` em ``d2.py``.) Para sistemas Windows 10, o recurso Miracast over Infrastructure (**MICE**) também é suportado, o que pode proporcionar uma melhor experiência de usuário. Em geral, lazycast não requer recompilação do wpa_supplicant para suportar várias funcionalidades p2p, e deve funcionar em um Raspberry Pi "out of the box".
 
-# OS
-Select "**Raspberry Pi OS (Legacy, 32-bit)** A port of Debian Bullseye with security updates and desktop environment" when flashing the SD card. Debian Bookworm seems to cause some issues.
+# Sistema Operacional
+Selecione "**Raspberry Pi OS (Legacy, 32-bit)** Uma porta do Debian Bullseye com atualizações de segurança e ambiente desktop" ao gravar o cartão SD. Debian Bookworm parece causar alguns problemas.
 
-On a fresh OS, install ``cmake``:
+Em um sistema operacional novo, instale ``cmake``:
 ```
 sudo apt install cmake
 ```
-Clone the Raspberry Pi userland repo and run ``buildme``:
+Clone o repositório userland do Raspberry Pi e execute ``buildme``:
 ```
 git clone https://github.com/raspberrypi/userland
 cd userland
 ./buildme
 ```
-Replace ``vc4-kms-v3d`` with ``vc4-fkms-v3d`` in ``/boot/config.txt``:
+Substitua ``vc4-kms-v3d`` por ``vc4-fkms-v3d`` em ``/boot/config.txt``:
 ```
 sudo sed -i 's/vc4-kms-v3d/vc4-fkms-v3d/g' /boot/config.txt
 ```
-Then reboot:
+Então reinicie:
 ```
 sudo reboot
 ```
-(You can see [this post](https://github.com/homeworkc/lazycast/issues/100#issuecomment-1003732280) for more details.)
-## Build Binaries
-Install packages (for compiling the players):
+(Você pode ver [este post](https://github.com/homeworkc/lazycast/issues/100#issuecomment-1003732280) para mais detalhes.)
+
+## Compilar Binários
+Instale pacotes (para compilar os players):
 ```
 sudo apt install libx11-dev libasound2-dev libavformat-dev libavcodec-dev python3-evdev
 ```
-Compile libraries on Pi:
+Compile bibliotecas no Pi:
 ```
 cd /opt/vc/src/hello_pi/libs/ilclient/
 sudo make
 cd /opt/vc/src/hello_pi/hello_video
 sudo make
 ```
-Clone this repo (to a desired directory):
+Clone este repositório (para um diretório desejado):
 ```
 cd ~/
 git clone https://github.com/homeworkc/lazycast
 ```
-Go to the ``lazycast`` directory and then ``make``:
+Vá para o diretório ``lazycast`` e então execute ``make``:
 ```
 cd lazycast
 make
 ```
 
-# Usage
+# Uso
 
-## Single Display Mode (Padrão)
-Run `./all.sh` to start lazycast receiver. Wait until the "The display is ready" message. The name of the display will appear after this message. Then, search for this name on the source device you want to cast. The default PIN number is ``31415926``. 
+## Modo Single Display (Padrão)
+Execute `./all.sh` para iniciar o receptor lazycast. Aguarde até a mensagem "The display is ready". O nome do display aparecerá após esta mensagem. Então, procure este nome no dispositivo de origem que você deseja fazer o cast. O número PIN padrão é ``31415926``.
 
-It is recommended to stop casting by the controls on the source (e.g., the PC) side.
+É recomendado parar o cast pelos controles no lado da fonte (por exemplo, no PC).
 
-## Dual Display Mode (Raspberry Pi 5)
+## Modo Dual Display (Raspberry Pi 5)
 
 Para usar o modo dual display com duas saídas HDMI independentes:
 
@@ -121,75 +122,76 @@ Para usar o modo dual display com duas saídas HDMI independentes:
 - Duas saídas HDMI conectadas
 - Suficiente largura de banda WiFi para duas conexões simultâneas
 
-# Tips
-Set the resolution on the source side. lazycast advertises all possible resolutions regardless of the current rendering resolution. Therefore, you may want to change the resolution (on the source) to match the actual resolution of the display connecting to Pi.  
+# Dicas
+Defina a resolução no lado da fonte. lazycast anuncia todas as resoluções possíveis independentemente da resolução de renderização atual. Portanto, você pode querer alterar a resolução (na fonte) para corresponder à resolução real do display conectado ao Pi.
 
-Modify parameters in the "settings" section in ``d2.py`` to change the sound output port (hdmi/3.5mm) and preferred player.  
+Modifique parâmetros na seção "settings" em ``d2.py`` para alterar a porta de saída de som (hdmi/3.5mm) e o player preferido.
 
-The maximum resolutions supported are 1920x1080p60 and 1920x1200p30. The GPU on Pi may struggle to handle 1920x1080p60, which results in high latency. In this case, reduce the FPS to 1920x1080p50.  
+As resoluções máximas suportadas são 1920x1080p60 e 1920x1200p30. A GPU do Pi pode ter dificuldade para lidar com 1920x1080p60, o que resulta em alta latência. Neste caso, reduza o FPS para 1920x1080p50.
 
-To change the default PIN number, replace the string ``31415926`` in ``all.sh`` to another 8-digit number.  
+Para alterar o número PIN padrão, substitua a string ``31415926`` em ``all.sh`` por outro número de 8 dígitos.
 
-You can hide Pi's cursor by using ``unclutter -idle 3``. See [this post](https://forums.raspberrypi.com/viewtopic.php?t=234879#p1437648).
+Você pode esconder o cursor do Pi usando ``unclutter -idle 3``. Veja [este post](https://forums.raspberrypi.com/viewtopic.php?t=234879#p1437648).
 
-After Pi connects to the source, it has an IP address of ``192.168.173.1`` and this connection can be reused for other purposes like SSH. On the other hand, since they are under the same subnet, precautions should be taken to prevent unauthorized access to Pi by anyone who knows the PIN number.    
+Depois que o Pi se conecta à fonte, ele tem um endereço IP de ``192.168.173.1`` e esta conexão pode ser reutilizada para outros propósitos como SSH. Por outro lado, como eles estão na mesma sub-rede, precauções devem ser tomadas para evitar acesso não autorizado ao Pi por qualquer pessoa que conheça o número PIN.
 
-Two in-house players are written for Raspberry Pi 3. VLC, omxplayer or gstreamer can be used instead on other platforms. (See [here](https://gstreamer.freedesktop.org/documentation/installing/on-linux.html) for details of installing gstreamer.) 
+Dois players internos foram escritos para Raspberry Pi 3. VLC, omxplayer ou gstreamer podem ser usados em outras plataformas. (Veja [aqui](https://gstreamer.freedesktop.org/documentation/installing/on-linux.html) para detalhes da instalação do gstreamer.)
 
-**It is very important that no background WiFi scanning occurs during casting. On Raspberry Pi, lazycast will automatically disable ``lxpanel`` during casting (in order to stop the ``lxplug-network`` plugin from scanning the network), and re-enable ``lxpanel`` after the casting is terminated. You may want to disable ``wlan0`` completely (``sudo ifconfig wlan0 down``) especially if ``wlan0`` is not currently connected to any network (and periodic scanning will be triggered in such a case). You can double-check that no background WiFi scanning happens by running ``iw event`` in a second terminal (and no event should be shown). [This post](https://forums.raspberrypi.com/viewtopic.php?t=250729#p1772473) has more information.**
+**É muito importante que nenhum scanning WiFi em segundo plano ocorra durante o cast. No Raspberry Pi, lazycast desabilitará automaticamente ``lxpanel`` durante o cast (para parar o plugin ``lxplug-network`` de escanear a rede), e reabilitará ``lxpanel`` após o cast ser terminado. Você pode querer desabilitar ``wlan0`` completamente (``sudo ifconfig wlan0 down``) especialmente se ``wlan0`` não estiver conectado a nenhuma rede no momento (e scanning periódico será acionado neste caso). Você pode verificar que nenhum scanning WiFi em segundo plano acontece executando ``iw event`` em um segundo terminal (e nenhum evento deve ser mostrado). [Este post](https://forums.raspberrypi.com/viewtopic.php?t=250729#p1772473) tem mais informações.
 
+Para redirecionar entradas de mouse e teclado no Pi, primeiro instale evdev (``pip install evdev``) e então defina ``enable_mouse_keyboard`` para ``1`` em ``d2.py``. Você também precisa permitir entradas de mouse e teclado no PC.
 
-To redirect mouse and keyboard inputs on Pi, first install evdev (``pip install evdev``) and then set ``enable_mouse_keyboard`` to ``1`` in ``d2.py``. You also need to allow mouse and keyboard inputs on the PC.
+# Problemas Conhecidos
+lazycast tenta lembrar as credenciais de pareamento para que entrar com o PIN seja necessário apenas uma vez para cada dispositivo. No entanto, este recurso não parece funcionar corretamente o tempo todo com imagens recentes do Raspbian. Portanto, o re-pareamento pode ser necessário após cada reinicialização do Raspberry Pi. Tente limpar as informações do 'lazycast' no dispositivo de origem antes de re-parear se você encontrar problemas de pareamento.
 
-# Known issues
-lazycast tries to remember the pairing credentials so that entering the PIN is only needed once for each device. However, this feature does not seem to work properly all the time with recent Raspbian images. Therefore, re-pairing may be needed after every Raspberry Pi reboot. Try clearing the 'lazycast' information on the source device before re-pairing if you run into pairing problems.  
+Player2 parece ter um bug de double-free que causa travamento ao reproduzir alguns vídeos. Atualmente um workaround (que monitora constantemente a vitalidade do player2) está implementado.
 
-Player2 seems to have a double-free bug which causes it to crash when playing some videos. Currently a workaround (that constantly monitors the liveliness of player2) is implemented.
+Latência: Limitada pela implementação do player rtp usado. (No VLC, a latência pode ser reduzida de 1200 para 300ms diminuindo o valor de cache de rede.)
 
-Latency: Limited by the implementation of the rtp player used. (In VLC, latency can be reduced from 1200 to 300ms by lowering the network cache value.)  
+Devido à natureza superlotada do espectro WiFi e uso de transmissão rtp não confiável, você pode experimentar algumas falhas de vídeo/travamento de áudio. Os players internos empregam vários mecanismos para ocultar erros de transmissão, mas ainda pode ser notável em ambientes wireless desafiadores. Interferência de outros dispositivos pode causar desconexões.
 
-Due to the overcrowded nature of the wifi spectrum and the use of unreliable rtp transmission, you may experience some video glitching/audio stuttering. The in-house players employ several mechanisms to conceal transmission error, but it may still be noticeable in challenging wireless environments. Interference from other devices may cause disconnections.  
+Dispositivos podem não suportar totalmente controle de backchannel e alguns pressionamentos de tecla/cliques se comportarão de forma diferente.
 
-Devices may not fully support backchannel control and some keystrokes/clicks will behave differently. 
+HDCP(proteção de conteúdo): Nem a chave nem o hardware estão disponíveis no Pi e portanto não é suportado.
 
-HDCP(content protection): Neither the key nor the hardware is available on Pi and therefore is not supported.  
+<!-- Alguns dispositivos Windows 10 parecem desconectar logo após uma conexão ser estabelecida. Você pode tentar usar ``win10debug.sh`` em vez de ``all.sh`` e ver se ajuda. -->
 
-<!-- Some Windows 10 devices seem to disconnect shortly after a connection is established. You can try using ``win10debug.sh`` instead of ``all.sh`` and see if it helps. -->
+# Iniciar no Boot
 
-# Start on boot
-
-Append this line to ``/etc/xdg/lxsession/LXDE-pi/autostart``:
+Adicione esta linha a ``/etc/xdg/lxsession/LXDE-pi/autostart``:
 ```
-@lxterminal -l --working-directory=<absolute path of lazycast> -e ./all.sh
+@lxterminal -l --working-directory=<caminho absoluto do lazycast> -e ./all.sh
 ```
-For example, if lazycast is placed under ``~/`` (which is ``/home/pi/``, if your username is ``pi``), append the following line to the file:
+Por exemplo, se lazycast está colocado sob ``~/`` (que é ``/home/pi/``, se seu nome de usuário é ``pi``), adicione a seguinte linha ao arquivo:
 ```
 @lxterminal -l --working-directory=/home/pi/lazycast -e ./all.sh
 ```
 
 # Miracast over Infrastructure
 
-For Windows 10 sources, Miracast over Infrastructure (MICE) is a feature that allows transmission of screen data over Ethernet or secure wifi networks. The spec of Miracast over Infrastructure (MICE) is available [here](https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-MICE/%5bMS-MICE%5d.pdf). Compared to wifi p2p, it allows stabler connection and lower latency. Although MICE relies on Ethernet or secure wifi network almost entirely, in the device discovery phase, it still requires a wifi p2p device to broadcast beacon and probe response frames to the source. (However, it might be possible to use two Pis so that one of the two does not need to have wifi hardware or be physically close to the source. One Pi would be used to trasmit the beacon while the other (that runs ``./project.py``) is used to project. For such setting to work, the variable ``hostname`` in ``mice.py`` must be set to the hostname of the machine running ``project.py``. In the future, it might be possible to emulate a wifi card by HW/SW on the source so that wifi p2p will not be necessary.)  
+Para fontes Windows 10, Miracast over Infrastructure (MICE) é um recurso que permite transmissão de dados de tela através de Ethernet ou redes WiFi seguras. A especificação do Miracast over Infrastructure (MICE) está disponível [aqui](https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-MICE/%5bMS-MICE%5d.pdf). Comparado com wifi p2p, permite conexão mais estável e menor latência. Embora MICE dependa quase inteiramente de Ethernet ou rede WiFi segura, na fase de descoberta de dispositivo, ainda requer um dispositivo wifi p2p para broadcast de beacon e frames de resposta de probe para a fonte. (No entanto, pode ser possível usar dois Pis para que um dos dois não precise ter hardware WiFi ou estar fisicamente próximo da fonte. Um Pi seria usado para transmitir o beacon enquanto o outro (que executa ``./project.py``) é usado para projetar. Para tal configuração funcionar, a variável ``hostname`` em ``mice.py`` deve ser definida para o hostname da máquina executando ``project.py``. No futuro, pode ser possível emular uma placa WiFi por HW/SW na fonte para que wifi p2p não seja necessário.)
 
-Currently, this feature is tested to be working with a Windows 10 PC and a Pi (with manually assigned IPs) connected via Ethernet. More tests might be needed, especially for different DHCP, DNS and firewall configurations. Ports used include but are not limited to UDP 53 (DNS), UDP 5353 (mDNS), TCP 7236 and TCP 7250. Also, the encryption feature is not implemented yet so it should only be used over trusted networks and it should not be used for sensitive data. MICE works in ipv6 networks but currently only ipv4 is implemented.  
+Atualmente, este recurso foi testado funcionando com um PC Windows 10 e um Pi (com IPs atribuídos manualmente) conectados via Ethernet. Mais testes podem ser necessários, especialmente para diferentes configurações de DHCP, DNS e firewall. As portas usadas incluem mas não estão limitadas a UDP 53 (DNS), UDP 5353 (mDNS), TCP 7236 e TCP 7250. Além disso, o recurso de criptografia não está implementado ainda então deve ser usado apenas em redes confiáveis e não deve ser usado para dados sensíveis. MICE funciona em redes ipv6 mas atualmente apenas ipv4 está implementado.
 
-## Preparation
-Install avahi-utils:
+## Preparação
+Instale avahi-utils:
 ```
 sudo apt install avahi-utils
 ```
-Make sure the Windows 10 PC is on the same network as the Pi. You can try pinging the Pi from the PC.  
-NetworkManager is **not** required for this version of MICE. However, using MICE will disable the built-in WiFi UI. (To restore the built-in WiFi UI after MICE, either run ``resetwpa.sh`` or simply reboot.)   
-## Usage
-Make sure there is no p2p interface that has already been created and ``all.sh`` is not running. (Make sure ``all.sh`` does not start on boot and then simply reboot.)  
+Certifique-se de que o PC Windows 10 está na mesma rede que o Pi. Você pode tentar fazer ping no Pi a partir do PC.
+NetworkManager **não** é necessário para esta versão do MICE. No entanto, usar MICE desabilitará a interface WiFi integrada. (Para restaurar a interface WiFi integrada após MICE, execute ``resetwpa.sh`` ou simplesmente reinicie.)
 
-Run ``./mice.sh``.  
+## Uso
+Certifique-se de que não há interface p2p já criada e ``all.sh`` não está rodando. (Certifique-se de que ``all.sh`` não inicie no boot e então simplesmente reinicie.)
 
-Use the "Connect" tab in Windows 10 and try to connect to the hostname of Pi (e.g., raspberrypi). Windows may try to connect using the traditional method first and therefore may ask for PIN. In that case, simply cancel the connecting process and try again. Since no encryption is implemented at the moment, the prompt for PIN should not appear using MICE.  
+Execute ``./mice.sh``.
 
-Windows 10 assigns the name of the display differently when using MICE. If the monitor connected to the Pi is successfully detected by the PC, the name of the display (e.g., raspberrypi) will be changed to the name of the monitor. If the detection fails, the name of the display will be changed to "Device". After disconnection, the name of the display will be changed back to the hostname of Pi (e.g., raspberrypi).  
+Use a aba "Connect" no Windows 10 e tente conectar ao hostname do Pi (por exemplo, raspberrypi). O Windows pode tentar conectar usando o método tradicional primeiro e portanto pode pedir PIN. Neste caso, simplesmente cancele o processo de conexão e tente novamente. Como nenhuma criptografia está implementada no momento, o prompt de PIN não deve aparecer usando MICE.
 
-If you wish to run MICE and wifi p2p simultaneously, set the parameter ``concurrent`` to ``1`` in ``newmice.py`` and only uses ``mice.sh``. When there are multiple IPs assigned to the Pi and mDNS does not seem to be working, manually set the ``ipstr`` variable in ``newmice.py`` to the target IP of Pi and a PC will try to connect to this IP directly.  
-# Others
-Some parts of the video player1 are modified from the codes on https://github.com/Apress/raspberry-pi-gpu-audio-video-prog. Many thanks to the author of "Raspberry Pi GPU Audio Video Programming" and, by extension, authors of omxplayer.  
-Using any part of the codes in this project in commercial products is prohibited.
+O Windows 10 atribui o nome do display de forma diferente quando usa MICE. Se o monitor conectado ao Pi for detectado com sucesso pelo PC, o nome do display (por exemplo, raspberrypi) será alterado para o nome do monitor. Se a detecção falhar, o nome do display será alterado para "Device". Após desconexão, o nome do display será alterado de volta para o hostname do Pi (por exemplo, raspberrypi).
+
+Se você deseja executar MICE e wifi p2p simultaneamente, defina o parâmetro ``concurrent`` para ``1`` em ``newmice.py`` e use apenas ``mice.sh``. Quando há múltiplos IPs atribuídos ao Pi e mDNS não parece estar funcionando, defina manualmente a variável ``ipstr`` em ``newmice.py`` para o IP alvo do Pi e um PC tentará conectar a este IP diretamente.
+
+# Outros
+Algumas partes do player de vídeo1 foram modificadas dos códigos em https://github.com/Apress/raspberry-pi-gpu-audio-video-prog. Muitos thanks ao autor de "Raspberry Pi GPU Audio Video Programming" e, por extensão, autores do omxplayer.
+O uso de qualquer parte dos códigos neste projeto em produtos comerciais é proibido.
