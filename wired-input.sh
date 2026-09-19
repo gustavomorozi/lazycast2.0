@@ -45,7 +45,9 @@ case "$src" in
         # Com buffer de 60-150 ms o VLC descarta os quadros ("picture is too late", PCR atrasado) e a prévia
         # nunca recebe imagem; 300 ms funcionou no Pi 5 (testado com ffmpeg/QuickSync no Windows).
         # Ajustável: LAZYCAST_STREAM_CACHING=<ms> (menor = menos latência, mais risco de perder quadros).
-        extra=(--network-caching=${LAZYCAST_STREAM_CACHING:-300} --live-caching=${LAZYCAST_STREAM_CACHING:-300})
+        # --no-audio: o fluxo de tela não tem áudio; sem isso o VLC espera o relógio de um áudio inexistente e
+        # não exibe o vídeo (o snapshot da prévia nunca sai). Testado no Pi 5.
+        extra=(--no-audio --network-caching=${LAZYCAST_STREAM_CACHING:-300} --live-caching=${LAZYCAST_STREAM_CACHING:-300})
         ;;
     *)
         echo "fonte inválida: $src"
