@@ -146,8 +146,8 @@ class P2P_Group_Add (threading.Thread):
 		except dbus.DBusException as exc:
 			error = 'Error:\n  Interface ' + self.interface_name + ' was not found'
 			print(error)
-			usage()
-			os._exit(0)
+			print(exc)
+			os._exit(1)
 
 		self.interface_object = self.bus.get_object(self.wpas_dbus_interface, self.path)
 		self.interfacep2pdevice = dbus.Interface(self.interface_object, self.wpas_dbus_interfaces_p2pdevice)

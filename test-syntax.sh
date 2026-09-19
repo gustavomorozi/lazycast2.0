@@ -40,6 +40,7 @@ test_bash_syntax "all.sh"
 test_bash_syntax "all-dual.sh"
 test_bash_syntax "install.sh"
 test_bash_syntax "install-service.sh"
+test_bash_syntax "setup-hdmi.sh"
 test_bash_syntax "lazycast-background.sh"
 test_bash_syntax "lazycast-status.sh"
 
@@ -50,6 +51,20 @@ test_bash_syntax "player_health_check.sh"
 test_bash_syntax "check_dependencies.sh"
 test_bash_syntax "test-environment.sh"
 test_bash_syntax "test-syntax.sh"
+test_bash_syntax "make-executable.sh"
+
+echo ""
+echo "Testando sintaxe Python..."
+for pyfile in d2.py d2-multi.py d2vlc.py d2win10debug.py newmice.py project.py scan.py; do
+    if python3 -m py_compile "$pyfile" 2>/dev/null; then
+        echo "✓ Sintaxe correta: $pyfile"
+        PASSED=$((PASSED + 1))
+    else
+        echo "✗ Erro de sintaxe: $pyfile"
+        python3 -m py_compile "$pyfile"
+        FAILED=$((FAILED + 1))
+    fi
+done
 
 echo ""
 echo "Testando scripts legados..."

@@ -25,7 +25,8 @@ echo ""
 
 # Detectar modelo do Raspberry Pi
 CPU_INFO=$(grep Hardware /proc/cpuinfo)
-if [[ "$CPU_INFO" == *"BCM2712"* ]]; then
+PI_MODEL=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null)
+if [[ "$CPU_INFO" == *"BCM2712"* ]] || [[ "$PI_MODEL" == *"Raspberry Pi 5"* ]]; then
     echo "✓ Raspberry Pi 5 detectado"
     PI5=true
 else
@@ -37,8 +38,17 @@ fi
 if [ "$DISPLAY_MODE" = "2" ] && [ "$PI5" = true ]; then
     echo "Configurando para dual display (HDMI-1 e HDMI-2)..."
     
-    # Verificar arquivo config.txt
-    CONFIG_FILE="/boot/config.txt"
+    # Verificar arquivo config.txt (Bookworm usa /boot/firmware/config.txt)
+    if [ -f /boot/firmware/config.txt ]; then
+        CONFIG_FILE="/boot/firmware/config.txt"
+    else
+        CONFIG_FILE="/boot/config.txt"
+    fi
+
+    if [ ! -f "$CONFIG_FILE" ]; then
+        echo "✗ Arquivo $CONFIG_FILE não encontrado"
+        exit 1
+    fi
     
     # Backup do config.txt
     if [ ! -f "$CONFIG_FILE.backup" ]; then
@@ -46,39 +56,27 @@ if [ "$DISPLAY_MODE" = "2" ] && [ "$PI5" = true ]; then
         echo "✓ Backup criado: $CONFIG_FILE.backup"
     fi
     
-    # Adicionar configurações para dual display
-    sudo sed -i '/^dtoverlay=vc4-fkms-v3d/a dtoverlay=vc4-fkms-v3d' "$CONFIG_FILE"
-    
-    # Configurar framebuffer para dual display
-    if ! grep -q "dtoverlay=vc4-fkms-v3d" "$CONFIG_FILE"; then
-        echo "dtoverlay=vc4-fkms-v3d" | sudo tee -a "$CONFIG_FILE"
+    # Adiciona uma linha ao config.txt apenas se ainda não existir
+    add_config_line() {
+        local line="$1"
+        if ! grep -qxF "$line" "$CONFIG_FILE"; then
+            echo "$line" | sudo tee -a "$CONFIG_FILE" > /dev/null
+            echo "  + $line"
+        fi
+    }
+
+    # Driver de vídeo
+    if ! grep -q "^dtoverlay=vc4-.*kms-v3d" "$CONFIG_FILE"; then
+        add_config_line "dtoverlay=vc4-fkms-v3d"
     fi
-    
-    # Configurar resolução para ambos os displays
-    if ! grep -q "hdmi_drive=1" "$CONFIG_FILE"; then
-        echo "hdmi_drive=1" | sudo tee -a "$CONFIG_FILE"
-    fi
-    
-    if ! grep -q "hdmi_group=1" "$CONFIG_FILE"; then
-        echo "hdmi_group=1" | sudo tee -a "$CONFIG_FILE"
-    fi
-    
-    if ! grep -q "hdmi_mode=16" "$CONFIG_FILE"; then
-        echo "hdmi_mode=16" | sudo tee -a "$CONFIG_FILE"
-    fi
-    
-    # Configurar segundo HDMI
-    if ! grep -q "hdmi_drive=2" "$CONFIG_FILE"; then
-        echo "hdmi_drive=2" | sudo tee -a "$CONFIG_FILE"
-    fi
-    
-    if ! grep -q "hdmi_group=2" "$CONFIG_FILE"; then
-        echo "hdmi_group=2" | sudo tee -a "$CONFIG_FILE"
-    fi
-    
-    if ! grep -q "hdmi_mode=16" "$CONFIG_FILE"; then
-        echo "hdmi_mode=16" | sudo tee -a "$CONFIG_FILE"
-    fi
+
+    # HDMI-1 (índice 0) e HDMI-2 (índice 1): 1080p60, modo HDMI (com áudio)
+    add_config_line "hdmi_drive:0=2"
+    add_config_line "hdmi_group:0=1"
+    add_config_line "hdmi_mode:0=16"
+    add_config_line "hdmi_drive:1=2"
+    add_config_line "hdmi_group:1=1"
+    add_config_line "hdmi_mode:1=16"
     
     echo "✓ Configurações HDMI adicionadas ao config.txt"
     echo "⚠ Reboot necessário para aplicar as mudanças"
