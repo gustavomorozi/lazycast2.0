@@ -284,3 +284,27 @@ network_postfix() {
 set_p2p_network_name() {
     sudo wpa_cli -i "$1" -- set p2p_ssid_postfix "$(network_postfix "$2")" >/dev/null
 }
+
+#################################################################################
+# Como o vídeo recebido é mostrado (LAZYCAST_VLC_MODE):
+#   window - VLC em janela/tela cheia (há monitor HDMI ligado): 1 tela = tela cheia; 2 telas = layout
+#            do labwc (um por monitor ou lado a lado)
+#   hidden - NENHUM monitor ligado (ex.: só a saída virtual do VNC): o VLC decodifica sem abrir janela
+#            (--vout=dummy) para não cobrir a área de trabalho; o vídeo só aparece na prévia do painel
+#            ("Ver telas", por snapshot). Testado no Pi 5: o snapshot funciona sem janela.
+# A decisão é tomada ao iniciar o serviço; ligou/desligou um monitor -> reinicie o LazyCast.
+#################################################################################
+setup_vlc_output() {
+    local slots="$1" nreal
+    export LAZYCAST_VLC_MODE=window
+    if command -v wlr-randr >/dev/null 2>&1 && pgrep -x labwc >/dev/null 2>&1; then
+        nreal=$(labwc_outputs | grep -vc '^NOOP')
+        if [ "$nreal" -lt 1 ]; then
+            export LAZYCAST_VLC_MODE=hidden
+            echo "Nenhum monitor HDMI ligado: vídeo sem janela (veja em 'Ver telas' no painel)."
+            return 0
+        fi
+    fi
+    if [ "$slots" -ge 2 ] && write_vlc_layout "$slots"; then export LAZYCAST_FULLSCREEN=0; fi
+    return 0
+}

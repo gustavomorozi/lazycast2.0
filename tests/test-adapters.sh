@@ -78,6 +78,25 @@ echo '<labwc_config/>' > "$R"
 if write_vlc_layout 2 >/dev/null; then bad "não deveria sobrescrever" ok; else ok "rc.xml do usuário preservado"; fi
 unset -f command pgrep kill sleep wlr-randr
 
+# --- modo do vídeo: sem monitor HDMI = sem janela; com monitor = janela/tela cheia
+command() { [ "$1" = "-v" ] && [ "$2" = "wlr-randr" ] && return 0; builtin command "$@"; }
+pgrep() { echo 4242; }
+kill() { :; }
+sleep() { :; }
+export XDG_CONFIG_HOME=$(mktemp -d)
+wlr-randr() { printf 'NOOP-1 "Headless"\n  Modes:\n    767x660 px (current)\n  Position: 0,0\n'; }
+unset LAZYCAST_VLC_MODE LAZYCAST_FULLSCREEN
+setup_vlc_output 1 >/dev/null
+eq "sem monitor (só NOOP): vídeo sem janela" "$LAZYCAST_VLC_MODE" "hidden"
+wlr-randr() { printf 'HDMI-A-1 "A"\n  Modes:\n    1920x1080 px, 60.0 Hz (preferred, current)\n  Position: 0,0\n'; }
+unset LAZYCAST_VLC_MODE LAZYCAST_FULLSCREEN
+setup_vlc_output 1 >/dev/null
+eq "1 monitor + 1 tela: janela (tela cheia padrão)" "$LAZYCAST_VLC_MODE" "window"
+unset LAZYCAST_FULLSCREEN
+setup_vlc_output 2 >/dev/null
+eq "1 monitor + 2 telas: layout aplicado (sem --fullscreen)" "$LAZYCAST_FULLSCREEN" "0"
+unset -f command pgrep kill sleep wlr-randr
+
 # --- nome aleatório do display
 n1=$(random_animal_name)
 [[ "$n1" =~ ^LazyCast-[A-Z][a-z]+$ ]] && ok "nome aleatório no formato LazyCast-Animal ($n1)" || bad "formato do nome" "$n1"

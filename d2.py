@@ -46,6 +46,8 @@ vlc_extra_args = os.environ.get('LAZYCAST_VLC_ARGS', '')
 # Título da janela do VLC (a regra de layout do labwc casa por título) e tela cheia opcional
 window_title = os.environ.get('LAZYCAST_WINDOW_TITLE', 'LazyCast-%d' % (display_screen + 1))
 vlc_fullscreen = os.environ.get('LAZYCAST_FULLSCREEN', '1') == '1'
+vlc_hidden = os.environ.get('LAZYCAST_VLC_MODE', 'window') == 'hidden'  # sem monitor: sem janela
+notify_enabled = os.environ.get('LAZYCAST_NOTIFY', '1') == '1'
 # Canal para a GUI pedir snapshots do vídeo decodificado (independe das janelas). Pasta privada do
 # usuário (tmpfs): o VLC 3 só aceita --rc-unix na interface antiga (oldrc).
 snap_dir = os.path.join(os.environ.get('XDG_RUNTIME_DIR', '/tmp'), 'lazycast')
@@ -58,6 +60,17 @@ parser = argparse.ArgumentParser()
 parser.add_argument('arg1', nargs='?', default='192.168.173.80')
 args = parser.parse_args()
 sourceip = vars(args)['arg1']
+
+def notify(msg):
+	"""Notificação de desktop (Tela 1 conectada...). Nunca atrapalha a transmissão."""
+	if not notify_enabled or not shutil.which('notify-send'):
+		return
+	try:
+		subprocess.Popen(['timeout', '5', 'notify-send', '--icon=video-display', 'LazyCast', msg],
+			stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+	except OSError:
+		pass
+
 
 def log(msg):
 	print('[' + time.strftime('%H:%M:%S') + '] ' + str(msg), flush=True)
@@ -485,7 +498,7 @@ def launchplayer(player_select):
 			os.makedirs(snap_dir, mode=0o700, exist_ok=True)
 		snap_args = ('--extraintf=oldrc --rc-unix=%s/vlc-%d.sock --rc-fake-tty --snapshot-path=%s '
 			'--snapshot-prefix=lc%d- --snapshot-format=jpg --snapshot-sequential ' % (snap_dir, rtp_port, snap_dir, rtp_port))
-		os.system('vlc ' + ('--fullscreen ' if vlc_fullscreen else '') + '--video-title=' + window_title + ' ' + snap_args + vlc_extra_args + ' rtp://0.0.0.0:' + str(rtp_port) + '/wfd1.0/streamid=0 --intf dummy --no-ts-trust-pcr --ts-seek-percent --network-caching=150 --no-mouse-events & ')
+		os.system('vlc ' + ('--vout=dummy ' if vlc_hidden else ('--fullscreen ' if vlc_fullscreen else '')) + '--video-title=' + window_title + ' ' + snap_args + vlc_extra_args + ' rtp://0.0.0.0:' + str(rtp_port) + '/wfd1.0/streamid=0 --intf dummy --no-ts-trust-pcr --ts-seek-percent --network-caching=150 --no-mouse-events & ')
 launchplayer(player_select)
 
 
@@ -500,6 +513,7 @@ data = recv_rtsp_message(sock)
 print("-------->\n" + data)
 
 log('---- Negotiation successful ----')
+notify('Tela %d conectada' % (display_screen + 1))
 
 sock.settimeout(None)
 fcntl.fcntl(sock, fcntl.F_SETFL, os.O_NONBLOCK)

@@ -84,8 +84,8 @@ if [ "$P2P_DEV_COUNT" -lt 2 ]; then
     echo "       P2P-client e P2P-GO em: iw phy | grep -A9 'Supported interface modes'"
 fi
 
-# layout das janelas do VLC (1 por monitor ou lado a lado); se aplicado, o VLC não usa --fullscreen
-if write_vlc_layout 2; then export LAZYCAST_FULLSCREEN=0; fi
+# como mostrar o vídeo: janela/tela cheia (com monitor) ou sem janela (sem monitor); ver lib-p2p.sh
+setup_vlc_output 2
 
 # Função para iniciar uma instância do LazyCast
 start_display_instance() {

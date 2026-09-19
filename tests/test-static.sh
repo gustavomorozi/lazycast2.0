@@ -79,6 +79,8 @@ check "GUI: compila" bash -c "python3 -m py_compile gui/lazycast-gui.py gui/back
 
 check "scripts definem o nome da rede (p2p_ssid_postfix)" bash -c "grep -q set_p2p_network_name all.sh && grep -q set_p2p_network_name all-dual.sh && grep -q 'p2p_ssid_postfix' lib-p2p.sh"
 
+check "sem monitor o VLC roda sem janela (--vout=dummy) e há notificação de tela conectada" bash -c "grep -q 'vout=dummy' d2.py && grep -q 'setup_vlc_output' all.sh && grep -q 'setup_vlc_output' all-dual.sh && grep -q \"notify('Tela\" d2.py"
+
 # Serviço: ambiente de sessão presente (evita dbus-launch órfão)
 check "lazycast.service define XDG_RUNTIME_DIR e D-Bus" bash -c "grep -q XDG_RUNTIME_DIR lazycast.service && grep -q DBUS_SESSION_BUS_ADDRESS lazycast.service"
 check "background usa timeout no notify-send" grep -q 'timeout 5 notify-send' lazycast-background.sh
