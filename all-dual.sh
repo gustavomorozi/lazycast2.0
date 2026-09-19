@@ -144,6 +144,7 @@ start_display_instance() {
                 sudo wpa_cli -i"$p2pdevinterface" p2p_find type=progressive
                 sudo wpa_cli -i"$p2pdevinterface" set device_name "$display_name"
                 sudo wpa_cli -i"$p2pdevinterface" set device_type 7-0050F204-1
+                set_wps_config_methods "$p2pdevinterface"
                 sudo wpa_cli -i"$p2pdevinterface" set p2p_go_ht40 1
                 # [RPi5] Sem wifi_display=1 o IE WFD não vai nas respostas e a fonte não lista o receptor
                 sudo wpa_cli -i"$p2pdevinterface" set wifi_display 1
@@ -187,7 +188,7 @@ start_display_instance() {
 
             # Configurar interface com IP específico
             sudo ifconfig "$p2pinterface" "$display_ip"
-            register_wps_pin "$p2pinterface" "$LAZYCAST_PIN"
+            register_wps_auth "$p2pinterface"
 
             # Criar configuração DHCP específica
             # [fix] lease_file próprio: as duas instâncias dividiam o mesmo arquivo de leases
@@ -203,7 +204,9 @@ EOF
             sleep 3
             # [fix] encerra udhcpd anterior desta instância antes de subir outro (evita duplicados)
             sudo pkill -f "[u]dhcpd ./udhcpd_$interface_suffix.conf" 2>/dev/null
+            rm -f "$instance_dir/udhcpd_$interface_suffix.leases"  # pool de 1 IP: não herdar aluguel antigo
             sudo busybox udhcpd "./udhcpd_$interface_suffix.conf"
+            watch_dhcp_release "$p2pinterface" "./udhcpd_$interface_suffix.conf" "$instance_dir/udhcpd_$interface_suffix.leases" &
 
             echo "The display is ready"
             echo "Display $display_name está pronto"

@@ -62,6 +62,7 @@ do
 		sudo wpa_cli -i$p2pdevinterface p2p_find type=progressive
 		sudo wpa_cli -i$p2pdevinterface set device_name "$display_name"
 		sudo wpa_cli -i$p2pdevinterface set device_type 7-0050F204-1
+		set_wps_config_methods "$p2pdevinterface"
 		sudo wpa_cli -i$p2pdevinterface set p2p_go_ht40 1
 		# [RPi5] Sem wifi_display=1 o wpa_supplicant NÃO inclui o IE WFD nas respostas (log: "Wi-Fi Display
 		# disabled - do not include WFD IE") e o Windows/Android nunca listam o receptor.
@@ -118,16 +119,20 @@ do
 	echo $p2pinterface
 
 	sudo ifconfig $p2pinterface $display_ip
-	register_wps_pin "$p2pinterface" "$LAZYCAST_PIN"
+	register_wps_auth "$p2pinterface"
 	printf "start	$dhcp_start\n">udhcpd.conf
 	printf "end	$dhcp_end\n">>udhcpd.conf
 	printf "interface	$p2pinterface\n">>udhcpd.conf
 	printf "option subnet 255.255.255.0\n">>udhcpd.conf
-	printf "option lease 10000">>udhcpd.conf
+	# [fix] pool de 1 endereço: leases limpos ao criar o grupo e liberados ao desconectar (watch_dhcp_release)
+	printf "option lease 10000\n">>udhcpd.conf
+	printf "lease_file $PWD/udhcpd.leases\n">>udhcpd.conf
+	rm -f "$PWD/udhcpd.leases"
 	sleep 3
 	# [fix] evita udhcpd duplicado a cada reconexão
 	sudo pkill -f "[u]dhcpd ./udhcpd.conf" 2>/dev/null
 	sudo busybox udhcpd ./udhcpd.conf
+	watch_dhcp_release "$p2pinterface" ./udhcpd.conf "$PWD/udhcpd.leases" &
 	echo "The display is ready"
 	echo "Your device is called: $display_name"
 	while :

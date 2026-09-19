@@ -196,6 +196,11 @@ if [ -f lazycast-config.conf ]; then
     LAZYCAST_PIN=$(sed -n 's/^LAZYCAST_PIN="\{0,1\}\([0-9]\{8\}\)"\{0,1\}$/\1/p' lazycast-config.conf | head -1)
 fi
 LAZYCAST_PIN=${LAZYCAST_PIN:-$(gen_wps_pin)}
+# Autenticação: pbc (padrão, sem PIN) ou pin; reinstalar preserva a escolha
+if [ -f lazycast-config.conf ]; then
+    LAZYCAST_AUTH=$(sed -n 's/^LAZYCAST_AUTH="\{0,1\}\(pbc\|pin\)"\{0,1\}$/\1/p' lazycast-config.conf | head -1)
+fi
+LAZYCAST_AUTH=${LAZYCAST_AUTH:-pbc}
 
 # Criar arquivo de configuração
 cat > lazycast-config.conf << EOF
@@ -235,7 +240,9 @@ SOUND_OUTPUT_SELECT=$SOUND_OUTPUT
 # 1: 3.5mm audio jack output
 # 2: alsa
 
-# PIN que o Windows/Android pedem ao conectar (gerado na instalação; troque se quiser, 8 dígitos válidos)
+# Autenticação ao conectar: "pbc" = sem PIN (botão WPS sempre ativo; qualquer aparelho ao alcance
+# do Wi-Fi pode espelhar) ou "pin" = a fonte pede LAZYCAST_PIN.
+LAZYCAST_AUTH="$LAZYCAST_AUTH"
 LAZYCAST_PIN="$LAZYCAST_PIN"
 
 # Configurações adicionais
@@ -300,7 +307,11 @@ echo "=========================================="
 echo "  Instalação Concluída!"
 echo "=========================================="
 echo ""
-echo "PIN de conexão (digite na fonte, Windows/Android): $LAZYCAST_PIN"
+if [ "$LAZYCAST_AUTH" = "pin" ]; then
+    echo "PIN de conexão (digite na fonte, Windows/Android): $LAZYCAST_PIN"
+else
+    echo "Conexão SEM PIN (botão WPS): qualquer aparelho ao alcance pode espelhar. Para exigir PIN: LAZYCAST_AUTH=pin em lazycast-config.conf."
+fi
 echo ""
 echo "Para iniciar o LazyCast:"
 echo "  - Single Display: ./all.sh"

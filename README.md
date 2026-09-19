@@ -56,7 +56,7 @@ Execução manual (sem serviço):
 ./all-dual.sh     # Dual display
 ```
 
-**PIN de conexão:** ao conectar, o Windows/Android pedem um PIN de 8 dígitos. O instalador gera um PIN aleatório, mostra no fim da instalação e o guarda em `LAZYCAST_PIN` no `lazycast-config.conf` (reinstalar mantém o mesmo PIN). Para trocar, edite essa chave (use 8 dígitos com dígito verificador WPS válido; o `install.sh` gera um) e reinicie: `sudo systemctl restart lazycast`.
+**Conexão sem PIN (padrão):** o Pi anuncia só o método "botão" (WPS PBC) e mantém o botão ativo, então Windows e Android conectam sem digitar nada. Atenção: qualquer aparelho ao alcance do Wi-Fi do Pi pode espelhar na tela. Para exigir PIN, defina `LAZYCAST_AUTH=pin` em `lazycast-config.conf` (o PIN aleatório fica em `LAZYCAST_PIN`) e rode `sudo systemctl restart lazycast`.
 
 Aguarde a mensagem `The display is ready` e procure o nome do display na fonte (Windows: *Win + K*; Android: *Transmitir/Smart View*). Encerre a transmissão preferencialmente pela fonte.
 
@@ -77,7 +77,8 @@ Arquivo `lazycast-config.conf` (gerado pelo instalador; reexecute `sudo ./instal
 | `DISPLAYn_SCREEN` | Índice da tela (0 = HDMI-1) | `0` / `1` |
 | `DISABLE_1920_1080_60FPS` | Anuncia 1080p50 em vez de 1080p60 | `1` |
 | `ENABLE_MOUSE_KEYBOARD` | Redireciona mouse/teclado (requer `python3-evdev`) | `0` |
-| `LAZYCAST_PIN` | PIN WPS pedido pela fonte ao conectar | aleatório (gerado na instalação) |
+| `LAZYCAST_AUTH` | `pbc` = sem PIN (botão WPS); `pin` = a fonte pede o PIN | `pbc` |
+| `LAZYCAST_PIN` | PIN usado só com `LAZYCAST_AUTH=pin` | aleatório (gerado na instalação) |
 | `MANAGE_FREQUENCY` | Alinha o canal do P2P ao da WLAN | `0` |
 
 ## Serviço systemd
@@ -122,7 +123,7 @@ Consulte [docs/TESTING-GUIDE.md](docs/TESTING-GUIDE.md) para o roteiro em hardwa
 | Sintoma | Causa provável / ação |
 |---|---|
 | `Permission denied` no `journalctl` do serviço | Rode `sudo ./install-service.sh` novamente (ajusta dono dos arquivos) |
-| Fonte pede PIN e não conecta | Use o `LAZYCAST_PIN` do `lazycast-config.conf` (mostrado no fim do `install.sh`) |
+| Fonte pede PIN e não conecta | Confirme `LAZYCAST_AUTH=pbc` (sem PIN) ou, com `pin`, use o `LAZYCAST_PIN` do `lazycast-config.conf` |
 | Display não aparece na fonte | `sudo wpa_cli interface` sem `p2p-dev-*`; desative o controle do NetworkManager sobre o Wi-Fi |
 | Vídeo travado em 1080p60 | Defina `DISABLE_1920_1080_60FPS=1` |
 | Display 2 não inicia | Falta segundo adaptador Wi-Fi P2P (veja o log em `lazycast_instance_display2/`) |
