@@ -56,6 +56,10 @@ check "install.sh aceita --yes" bash -c "grep -q -- '--yes' install.sh"
 check "all.sh/all-dual.sh limpam interfaces P2P órfãs" bash -c "grep -q cleanup_orphan_p2p_ifaces all.sh && grep -q cleanup_orphan_p2p_ifaces all-dual.sh"
 check "install.sh não referencia player_health_check.sh" bash -c "! grep -q player_health_check install.sh"
 
+check "lib-p2p.sh pausa e retoma o NetworkManager" bash -c "grep -q 'killall -STOP NetworkManager' lib-p2p.sh && grep -q 'killall -CONT NetworkManager' lib-p2p.sh"
+check "scripts chamam pause_networkmanager" bash -c "grep -q pause_networkmanager all.sh && grep -q pause_networkmanager all-dual.sh"
+check "serviço retoma o NetworkManager ao parar" grep -q "ExecStopPost=.*CONT NetworkManager" lazycast.service
+
 # Serviço: ambiente de sessão presente (evita dbus-launch órfão)
 check "lazycast.service define XDG_RUNTIME_DIR e D-Bus" bash -c "grep -q XDG_RUNTIME_DIR lazycast.service && grep -q DBUS_SESSION_BUS_ADDRESS lazycast.service"
 check "background usa timeout no notify-send" grep -q 'timeout 5 notify-send' lazycast-background.sh

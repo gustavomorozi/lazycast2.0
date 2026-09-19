@@ -52,6 +52,9 @@ list_p2p_devs() {
     sudo wpa_cli interface 2>/dev/null | grep -E "^p2p-dev-"
 }
 
+pause_networkmanager
+cleanup_orphan_p2p_ifaces
+
 # Limpar informações de pareamento antigas em todas as interfaces p2p-dev
 # (antes: apenas p2p-dev-wlan0 fixo)
 echo 'Limpando informações de pareamento antigas...'
@@ -233,6 +236,7 @@ EOF
 
 cleanup() {
     echo "Parando displays..."
+    resume_networkmanager
     kill $display1_pid $display2_pid 2>/dev/null
     # [fix] o kill acima só atinge o subshell; encerra também os filhos (d2.py, vlc, udhcpd)
     pkill -f "[d]2.py $DISPLAY1_DHCP_START" 2>/dev/null

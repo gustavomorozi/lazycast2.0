@@ -17,6 +17,8 @@ Environment=WAYLAND_DISPLAY=wayland-0
 LogsDirectory=lazycast
 ExecStart=/home/pi/lazycast2.0/lazycast-background.sh
 Restart=on-failure
+# Garante que o NetworkManager (pausado pelo LazyCast) volte a rodar ao parar o serviço
+ExecStopPost=-+/usr/bin/killall -CONT NetworkManager
 RestartSec=10
 TimeoutStopSec=15
 

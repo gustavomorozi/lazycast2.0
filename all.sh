@@ -43,6 +43,7 @@ for dev in $(sudo wpa_cli interface 2>/dev/null | grep -E "^p2p-dev-"); do
 	sudo wpa_cli -i "$dev" remove_network all >/dev/null 2>&1 || true
 done
 
+pause_networkmanager
 cleanup_orphan_p2p_ifaces
 
 while :

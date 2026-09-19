@@ -267,6 +267,13 @@ if [ -n "$SUDO_USER" ]; then
     chmod 664 lazycast-background.log
 fi
 
+# Versão anterior criava este arquivo (unmanaged-devices), que não impedia o NetworkManager de
+# derrubar o grupo P2P. O LazyCast agora pausa o NetworkManager enquanto roda (lib-p2p.sh).
+if [ -f /etc/NetworkManager/conf.d/99-lazycast-p2p.conf ]; then
+    rm -f /etc/NetworkManager/conf.d/99-lazycast-p2p.conf
+    systemctl reload NetworkManager 2>/dev/null || true
+fi
+
 # Tornar scripts executáveis
 chmod +x all.sh all-dual.sh install.sh install-service.sh setup-hdmi.sh
 chmod +x lazycast-background.sh lazycast-status.sh

@@ -21,3 +21,35 @@ cleanup_orphan_p2p_ifaces() {
         fi
     done
 }
+
+# O NetworkManager (Pi 5 / Bookworm-Trixie) desliga o grupo P2P menos de 1 s após o
+# wpa_supplicant criá-lo (P2P-GROUP-STARTED seguido de AP-DISABLED). Testado no Pi 5:
+# com o NetworkManager pausado (SIGSTOP) o grupo permanece; ativo, é removido, mesmo com
+# unmanaged-devices. Por isso ele é pausado enquanto o LazyCast roda e retomado ao sair.
+# Efeito: o Wi-Fi já conectado continua, mas não reconecta sozinho durante o uso.
+NM_PAUSED=0
+
+# Espera (até ~60 s) a rede subir no boot para não pausar o NetworkManager antes de conectar.
+wait_for_network() {
+    command -v nmcli >/dev/null 2>&1 || return 0
+    local i
+    for i in $(seq 1 30); do
+        nmcli -t -f STATE general 2>/dev/null | grep -q '^connected' && return 0
+        sleep 2
+    done
+}
+
+resume_networkmanager() {
+    if [ "$NM_PAUSED" = "1" ]; then
+        sudo killall -CONT NetworkManager 2>/dev/null
+        NM_PAUSED=0
+    fi
+}
+
+pause_networkmanager() {
+    pgrep -x NetworkManager >/dev/null 2>&1 || return 0
+    wait_for_network
+    sudo killall -STOP NetworkManager 2>/dev/null && NM_PAUSED=1
+    trap 'resume_networkmanager; exit 0' INT TERM HUP
+    trap 'resume_networkmanager' EXIT
+}
