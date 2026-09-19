@@ -42,7 +42,10 @@ case "$src" in
         udp_port="${src#stream:}"
         label="rede"
         mrl="udp://@:$udp_port"
-        extra=(--network-caching=60 --live-caching=60)
+        # Com buffer de 60-150 ms o VLC descarta os quadros ("picture is too late", PCR atrasado) e a prévia
+        # nunca recebe imagem; 300 ms funcionou no Pi 5 (testado com ffmpeg/QuickSync no Windows).
+        # Ajustável: LAZYCAST_STREAM_CACHING=<ms> (menor = menos latência, mais risco de perder quadros).
+        extra=(--network-caching=${LAZYCAST_STREAM_CACHING:-300} --live-caching=${LAZYCAST_STREAM_CACHING:-300})
         ;;
     *)
         echo "fonte inválida: $src"
