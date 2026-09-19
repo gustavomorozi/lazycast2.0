@@ -212,6 +212,7 @@ class PreviewWindow(Gtk.Window):
         outer.pack_start(self.row, True, True, 0)
         self.items = []
         n = home.status['mode'] if home.status else 1
+        self.busy = [False] * n
         for i in range(n):
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
             stack = Gtk.Stack()
@@ -226,8 +227,8 @@ class PreviewWindow(Gtk.Window):
             box.pack_start(cap, False, False, 0)
             self.row.pack_start(box, True, True, 0)
             self.items.append((stack, img, cap))
-        self.note = label('Prévia atualizada a cada segundo. Com monitores nos HDMI, cada tela vai em '
-                          'tela cheia no seu monitor.', 'muted')
+        self.note = label('Prévia do vídeo recebido, atualizada a cada segundo. Com monitores nos HDMI, cada tela '
+                          'aparece em tela cheia no seu monitor.', 'muted')
         outer.pack_start(self.note, False, False, 0)
         self.timer = GLib.timeout_add(1000, self.tick)
         self.connect('destroy', lambda *_: GLib.source_remove(self.timer) if self.timer else None)
@@ -236,28 +237,36 @@ class PreviewWindow(Gtk.Window):
 
     def tick(self):
         st = self.home.status
-        regions = backend.layout_regions(n=len(self.items))
+        ports = [backend.load_config().get('DISPLAY1_RTP_PORT', '1028'), backend.load_config().get('DISPLAY2_RTP_PORT', '1030')]
         for i, (stack, img, cap) in enumerate(self.items):
             slot = st['slots'][i] if st and i < len(st['slots']) else None
             cap.set_text('Tela %d%s' % (i + 1, (' — ' + slot['source']) if slot and slot['source'] else ''))
-            if not (slot and slot['streaming'] and i < len(regions)):
+            if not (slot and slot['streaming']):
                 stack.set_visible_child_name('wait')
                 continue
-            data = backend.grab(regions[i])
-            if not data:
+            if self.busy[i]:
                 continue
-            try:
-                loader = GdkPixbuf.PixbufLoader()
-                loader.write(data)
-                loader.close()
-                pb = loader.get_pixbuf()
-                scale = min(self.THUMB_W / pb.get_width(), self.THUMB_H / pb.get_height())
-                pb = pb.scale_simple(int(pb.get_width() * scale), int(pb.get_height() * scale), GdkPixbuf.InterpType.BILINEAR)
-                img.set_from_pixbuf(pb)
-                stack.set_visible_child_name('img')
-            except GLib.Error:
-                pass
+            self.busy[i] = True
+            run_async(lambda p=ports[i]: backend.request_snapshot(p),
+                      lambda data, i=i: self.show_frame(i, data))
         return True
+
+    def show_frame(self, i, data):
+        self.busy[i] = False
+        if not data:
+            return
+        stack, img, _cap = self.items[i]
+        try:
+            loader = GdkPixbuf.PixbufLoader()
+            loader.write(data)
+            loader.close()
+            pb = loader.get_pixbuf()
+            scale = min(self.THUMB_W / pb.get_width(), self.THUMB_H / pb.get_height())
+            pb = pb.scale_simple(int(pb.get_width() * scale), int(pb.get_height() * scale), GdkPixbuf.InterpType.BILINEAR)
+            img.set_from_pixbuf(pb)
+            stack.set_visible_child_name('img')
+        except GLib.Error:
+            pass
 
 
 # ============================================================ Configurações
@@ -562,6 +571,7 @@ class App(Gtk.Application):
         win.show_all()
         win.settings._pin_visibility()
         win.stack.set_visible_child_name(self.page)
+        win.set_focus(None)
         win.present()
         if self.preview:
             GLib.timeout_add(1500, lambda: win.home.on_view(None) or False)

@@ -157,29 +157,35 @@ class HealthTests(unittest.TestCase):
         self.assertFalse(res['Wi-Fi Direct (P2P) disponível'])
 
 
-class LayoutTests(unittest.TestCase):
-    def _write(self, xml):
+class SnapshotTests(unittest.TestCase):
+    def test_pega_o_mais_recente_e_limpa_os_antigos(self):
+        import time
         d = tempfile.mkdtemp()
-        p = os.path.join(d, 'rc.xml')
-        open(p, 'w').write(xml)
-        return p
+        for i, name in enumerate(('lc1028-00001.jpg', 'lc1028-00002.jpg')):
+            with open(os.path.join(d, name), 'wb') as f:
+                f.write(b'frame%d' % i)
+            os.utime(os.path.join(d, name), (time.time() + i, time.time() + i))
+        with open(os.path.join(d, 'lc1030-00001.jpg'), 'wb') as f:
+            f.write(b'outra-porta')
+        self.assertEqual(backend.latest_snapshot(d, '1028'), b'frame1')
+        self.assertEqual(sorted(os.listdir(d)), ['lc1030-00001.jpg'])
 
-    def test_lado_a_lado(self):
-        p = self._write('<!-- lazycast-layout -->\n<windowRule title="LazyCast-1">\n'
-                        '<action name="MoveTo" x="0" y="40"/>\n<action name="ResizeTo" width="383" height="215"/>\n</windowRule>\n'
-                        '<windowRule title="LazyCast-2">\n<action name="MoveTo" x="383" y="40"/>\n'
-                        '<action name="ResizeTo" width="383" height="215"/>\n</windowRule>')
-        self.assertEqual(backend.layout_regions(p), [['-g', '0,40 383x215'], ['-g', '383,40 383x215']])
+    def test_sem_arquivos(self):
+        self.assertIsNone(backend.latest_snapshot(tempfile.mkdtemp(), '1028'))
 
-    def test_um_por_monitor(self):
-        p = self._write('<!-- lazycast-layout -->\n<windowRule title="LazyCast-1">\n'
-                        '<action name="MoveToOutput" output="HDMI-A-1"/>\n</windowRule>\n'
-                        '<windowRule title="LazyCast-2">\n<action name="MoveToOutput" output="HDMI-A-2"/>\n</windowRule>')
-        self.assertEqual(backend.layout_regions(p), [['-o', 'HDMI-A-1'], ['-o', 'HDMI-A-2']])
+    def test_sem_socket_devolve_none(self):
+        self.assertIsNone(backend.request_snapshot('1028', wait=0.1, directory=tempfile.mkdtemp()))
 
-    def test_arquivo_do_usuario_ou_ausente(self):
-        self.assertEqual(backend.layout_regions(self._write('<labwc_config/>')), [])
-        self.assertEqual(backend.layout_regions('/nao/existe.xml'), [])
+    def test_pasta_privada_usa_xdg_runtime_dir(self):
+        old = os.environ.get('XDG_RUNTIME_DIR')
+        os.environ['XDG_RUNTIME_DIR'] = '/run/user/1000'
+        try:
+            self.assertEqual(backend.snap_dir(), os.path.join('/run/user/1000', 'lazycast'))
+        finally:
+            if old is None:
+                os.environ.pop('XDG_RUNTIME_DIR')
+            else:
+                os.environ['XDG_RUNTIME_DIR'] = old
 
 
 if __name__ == '__main__':

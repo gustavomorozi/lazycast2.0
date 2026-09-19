@@ -250,46 +250,52 @@ def report_text(cfg=None):
     return '\n'.join(lines)
 
 
-# ------------------------------------------------------------------ prévia (grim)
-def layout_regions(rc_path=None, n=2):
-    """Lê as regras de layout do LazyCast (rc.xml) e devolve, por tela, os argumentos do grim:
-    região 'x,y WxH' (lado a lado) ou saída (-o HDMI-A-1)."""
-    rc_path = rc_path or LABWC_RC
-    try:
-        with open(rc_path, encoding='utf-8') as f:
-            xml = f.read()
-    except OSError:
-        return []
-    if 'lazycast-layout' not in xml:
-        return []
-    regs = []
-    for i in range(1, n + 1):
-        m = re.search(r'title="LazyCast-%d">(.*?)</windowRule>' % i, xml, re.S)
-        if not m:
-            break
-        body = m.group(1)
-        out = re.search(r'name="MoveToOutput" output="([^"]+)"', body)
-        pos = re.search(r'name="MoveTo" x="(-?\d+)" y="(-?\d+)"', body)
-        size = re.search(r'name="ResizeTo" width="(\d+)" height="(\d+)"', body)
-        if out:
-            regs.append(['-o', out.group(1)])
-        elif pos and size:
-            regs.append(['-g', '%s,%s %sx%s' % (pos.group(1), pos.group(2), size.group(1), size.group(2))])
-        else:
-            break
-    return regs
+# ------------------------------------------------------------------ prévia (snapshot do VLC)
+def snap_dir():
+    """Pasta privada do usuário onde o receptor (d2.py) cria o socket e os snapshots do VLC."""
+    return os.path.join(os.environ.get('XDG_RUNTIME_DIR', '/tmp'), 'lazycast')
 
 
-def grab(grim_args, timeout=4):
-    """Captura via grim (PPM) e devolve bytes ou None."""
-    env = dict(os.environ)
-    env.setdefault('XDG_RUNTIME_DIR', '/run/user/%d' % os.getuid())
-    env.setdefault('WAYLAND_DISPLAY', 'wayland-0')
-    try:
-        p = subprocess.run(['grim', '-t', 'ppm'] + grim_args + ['-'], capture_output=True, timeout=timeout, env=env)
-        return p.stdout if p.returncode == 0 and p.stdout else None
-    except (OSError, subprocess.SubprocessError):
+def latest_snapshot(directory, port):
+    """Devolve os bytes do snapshot mais recente da porta e apaga os antigos (evita acumular)."""
+    import glob
+    files = sorted(glob.glob(os.path.join(directory, 'lc%s-*.jpg' % port)), key=os.path.getmtime)
+    if not files:
         return None
+    try:
+        with open(files[-1], 'rb') as f:
+            data = f.read()
+    except OSError:
+        return None
+    for old in files:
+        try:
+            os.remove(old)
+        except OSError:
+            pass
+    return data or None
+
+
+def request_snapshot(port, wait=1.2, directory=None):
+    """Pede um snapshot ao VLC daquela porta (socket RC) e devolve os bytes JPEG, ou None."""
+    import socket
+    import time
+    directory = directory or snap_dir()
+    sock_path = os.path.join(directory, 'vlc-%s.sock' % port)
+    try:
+        s = socket.socket(socket.AF_UNIX)
+        s.settimeout(1.5)
+        s.connect(sock_path)
+        s.sendall(b'snapshot\n')
+        s.close()
+    except (OSError, AttributeError):
+        return None
+    deadline = time.time() + wait
+    while time.time() < deadline:
+        data = latest_snapshot(directory, port)
+        if data:
+            return data
+        time.sleep(0.1)
+    return None
 
 
 # ------------------------------------------------------------------ ações
