@@ -170,6 +170,10 @@ python -m py_compile project.py
 ./test-syntax.sh          # Testa sintaxe de todos os scripts bash
 ./test-environment.sh    # Verifica ambiente do sistema
 ./check_dependencies.sh   # Verifica dependências
+
+# Teste de integração sem hardware: simula uma fonte Miracast (Windows/Android)
+# e exercita d2.py, d2-multi.py, all.sh e all-dual.sh com wpa_cli/udhcpd/players simulados
+./test-integration.sh everything   # ou: receiver | multi | all | dual
 ```
 
 ### Teste em Hardware Real
