@@ -155,9 +155,8 @@ do
 	echo "The display is ready"
 	echo "Your device is called: $display_name"
 	slot2_pid=""
+	setup_vlc_output "$slots"
 	if [ "$slots" -ge 2 ]; then
-		# layout das janelas (lado a lado ou 1 por monitor); se aplicado, o VLC não usa --fullscreen
-		if write_vlc_layout "$slots"; then export LAZYCAST_FULLSCREEN=0; fi
 		echo "Modo grupo compartilhado: Display 1 = $dhcp_start (tela $screen1), Display 2 = $ip2 (tela $screen2)"
 		(
 			while [ -d "/sys/class/net/$p2pinterface" ]
