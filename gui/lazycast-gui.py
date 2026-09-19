@@ -96,7 +96,7 @@ class HomePage(Gtk.Box):
 
         # telas
         self.screens_box = Gtk.Box(spacing=12, homogeneous=True)
-        self.pack_start(self.screens_box, True, True, 0)
+        self.pack_start(self.screens_box, False, False, 0)
         self.screen_widgets = []
 
         # ações
@@ -549,8 +549,10 @@ class MainWindow(Gtk.ApplicationWindow):
 
 
 class App(Gtk.Application):
-    def __init__(self):
+    def __init__(self, page='home', preview=False):
         super().__init__(application_id='br.lazycast.Gui')
+        self.page = page
+        self.preview = preview
 
     def do_activate(self):
         prov = Gtk.CssProvider()
@@ -559,8 +561,16 @@ class App(Gtk.Application):
         win = self.props.active_window or MainWindow(self)
         win.show_all()
         win.settings._pin_visibility()
+        win.stack.set_visible_child_name(self.page)
         win.present()
+        if self.preview:
+            GLib.timeout_add(1500, lambda: win.home.on_view(None) or False)
 
 
 if __name__ == '__main__':
-    sys.exit(App().run(sys.argv))
+    import argparse
+    ap = argparse.ArgumentParser(description='Painel do LazyCast')
+    ap.add_argument('--page', choices=['home', 'settings', 'diag'], default='home', help='aba inicial')
+    ap.add_argument('--preview', action='store_true', help='abre a prévia das telas')
+    args = ap.parse_args()
+    sys.exit(App(args.page, args.preview).run([sys.argv[0]]))
