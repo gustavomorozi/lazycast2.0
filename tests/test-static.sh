@@ -62,6 +62,10 @@ check "serviço retoma o NetworkManager ao parar" grep -q "ExecStopPost=.*CONT N
 
 check "all.sh/all-dual.sh ligam wifi_display antes do wfd_subelem_set" bash -c "grep -q 'set wifi_display 1' all.sh && grep -q 'set wifi_display 1' all-dual.sh"
 
+check "scripts registram o PIN WPS (wps_pin)" bash -c "grep -q register_wps_pin all.sh && grep -q register_wps_pin all-dual.sh && grep -q 'wps_pin any' lib-p2p.sh"
+check "install.sh gera LAZYCAST_PIN" grep -q "gen_wps_pin" install.sh
+check "PIN gerado tem 8 dígitos e checksum WPS válido" bash -c "source ./lib-p2p.sh; for i in 1 2 3 4 5; do p=\$(gen_wps_pin); [ \${#p} -eq 8 ] || exit 1; a=0; for k in 0 1 2 3 4 5 6 7; do d=\${p:\$k:1}; if [ \$((k%2)) -eq 0 ]; then a=\$((a+3*d)); else a=\$((a+d)); fi; done; [ \$((a%10)) -eq 0 ] || exit 1; done"
+
 # Serviço: ambiente de sessão presente (evita dbus-launch órfão)
 check "lazycast.service define XDG_RUNTIME_DIR e D-Bus" bash -c "grep -q XDG_RUNTIME_DIR lazycast.service && grep -q DBUS_SESSION_BUS_ADDRESS lazycast.service"
 check "background usa timeout no notify-send" grep -q 'timeout 5 notify-send' lazycast-background.sh

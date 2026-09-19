@@ -187,6 +187,7 @@ start_display_instance() {
 
             # Configurar interface com IP específico
             sudo ifconfig "$p2pinterface" "$display_ip"
+            register_wps_pin "$p2pinterface" "$LAZYCAST_PIN"
 
             # Criar configuração DHCP específica
             # [fix] lease_file próprio: as duas instâncias dividiam o mesmo arquivo de leases

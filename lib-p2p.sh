@@ -53,3 +53,24 @@ pause_networkmanager() {
     trap 'resume_networkmanager; exit 0' INT TERM HUP
     trap 'resume_networkmanager' EXIT
 }
+
+# PIN WPS do grupo P2P. Sem um PIN registrado (wps_pin), o Windows/Android pedem PIN e não
+# há nenhum aceito, então a conexão trava nessa tela (o commit que "removeu o PIN" quebrou isso).
+# O PIN vem de LAZYCAST_PIN no lazycast-config.conf (gerado aleatoriamente pelo install.sh).
+register_wps_pin() {
+    local group_if="$1" pin="${2:-$LAZYCAST_PIN}"
+    if [ -z "$pin" ]; then
+        echo "AVISO: LAZYCAST_PIN vazio no lazycast-config.conf; execute ./install.sh para gerar um PIN."
+        return 1
+    fi
+    sudo wpa_cli -i "$group_if" wps_pin any "$pin" >/dev/null
+}
+
+# Gera um PIN WPS de 8 dígitos com dígito verificador válido (7 aleatórios + checksum)
+gen_wps_pin() {
+    local n acc d
+    n=$(shuf -i 1000000-9999999 -n 1)
+    acc=$(( 3*(n/1000000%10) + (n/100000%10) + 3*(n/10000%10) + (n/1000%10) + 3*(n/100%10) + (n/10%10) + 3*(n%10) ))
+    d=$(( (10 - acc % 10) % 10 ))
+    echo "${n}${d}"
+}

@@ -118,6 +118,7 @@ do
 	echo $p2pinterface
 
 	sudo ifconfig $p2pinterface $display_ip
+	register_wps_pin "$p2pinterface" "$LAZYCAST_PIN"
 	printf "start	$dhcp_start\n">udhcpd.conf
 	printf "end	$dhcp_end\n">>udhcpd.conf
 	printf "interface	$p2pinterface\n">>udhcpd.conf
