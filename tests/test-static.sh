@@ -68,6 +68,8 @@ check "install.sh grava LAZYCAST_AUTH (padrão pbc)" bash -c "grep -q 'LAZYCAST_
 check "install.sh gera LAZYCAST_PIN" grep -q "gen_wps_pin" install.sh
 check "PIN gerado tem 8 dígitos e checksum WPS válido" bash -c "source ./lib-p2p.sh; for i in 1 2 3 4 5; do p=\$(gen_wps_pin); [ \${#p} -eq 8 ] || exit 1; a=0; for k in 0 1 2 3 4 5 6 7; do d=\${p:\$k:1}; if [ \$((k%2)) -eq 0 ]; then a=\$((a+3*d)); else a=\$((a+d)); fi; done; [ \$((a%10)) -eq 0 ] || exit 1; done"
 
+check "detecção de adaptadores (tests/test-adapters.sh)" bash tests/test-adapters.sh
+
 # Serviço: ambiente de sessão presente (evita dbus-launch órfão)
 check "lazycast.service define XDG_RUNTIME_DIR e D-Bus" bash -c "grep -q XDG_RUNTIME_DIR lazycast.service && grep -q DBUS_SESSION_BUS_ADDRESS lazycast.service"
 check "background usa timeout no notify-send" grep -q 'timeout 5 notify-send' lazycast-background.sh

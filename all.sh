@@ -48,8 +48,13 @@ cleanup_orphan_p2p_ifaces
 
 while :
 do
-	p2pdevinterface=$(sudo wpa_cli interface | grep -E "p2p-dev" | tail -1)
-	wlaninterface=$(echo $p2pdevinterface | cut -c1-8 --complement)
+	# [usb] por capacidade (não pelo nome): DISPLAY1_P2P_DEV fixa o adaptador (nome ou MAC)
+	if [ -n "$DISPLAY1_P2P_DEV" ]; then
+		p2pdevinterface=$(resolve_p2p_dev_pin "$DISPLAY1_P2P_DEV")
+	else
+		p2pdevinterface=$(list_p2p_devs | head -1)
+	fi
+	wlaninterface=${p2pdevinterface#p2p-dev-}
 	echo $p2pdevinterface
 	echo $wlaninterface
 	ain="$(sudo wpa_cli interface)"

@@ -123,3 +123,73 @@ gen_wps_pin() {
     d=$(( (10 - acc % 10) % 10 ))
     echo "${n}${d}"
 }
+
+#################################################################################
+# Descoberta de adaptadores Wi-Fi: por CAPACIDADE, não por nome (wlan1, wlx...) nem por porta USB.
+# Um adaptador serve ao LazyCast se o driver lista P2P-client e P2P-GO nos modos suportados
+# (iw phy <phy> info). Chips sem isso (ex.: Ralink RT5370 / rt2800usb) não fazem Wi-Fi Direct.
+#################################################################################
+
+# Interfaces Wi-Fi "físicas" (exclui as p2p-* de grupo)
+wifi_ifaces() { iw dev 2>/dev/null | awk '/Interface/ {print $2}' | grep -v '^p2p-'; }
+iface_phy()    { iw dev "$1" info 2>/dev/null | awk '/wiphy/ {print "phy" $2}'; }
+iface_mac()    { cat "/sys/class/net/$1/address" 2>/dev/null; }
+iface_driver() { basename "$(readlink -f "/sys/class/net/$1/device/driver" 2>/dev/null)" 2>/dev/null; }
+iface_bus() {
+    if readlink -f "/sys/class/net/$1/device" 2>/dev/null | grep -q '/usb'; then echo usb; else echo interno; fi
+}
+
+# 0 (verdadeiro) se o phy suporta P2P-client e P2P-GO
+phy_supports_p2p() {
+    local modes
+    modes=$(iw phy "$1" info 2>/dev/null | sed -n '/Supported interface modes:/,/Band [0-9]/p')
+    echo "$modes" | grep -q 'P2P-GO' && echo "$modes" | grep -q 'P2P-client'
+}
+
+# Interface de controle P2P no wpa_supplicant: p2p-dev-<if> se existir; senão a própria <if>
+p2p_control_iface() {
+    local wl="$1" known
+    known=$(sudo wpa_cli interface 2>/dev/null)
+    if echo "$known" | grep -qx "p2p-dev-$wl"; then echo "p2p-dev-$wl"
+    elif echo "$known" | grep -qx "$wl"; then echo "$wl"
+    fi
+}
+
+# Interfaces de controle P2P de adaptadores compatíveis, em ordem ESTÁVEL (interno primeiro,
+# depois por MAC), para o mesmo display cair sempre no mesmo adaptador, em qualquer porta USB.
+list_p2p_devs() {
+    local wl phy ctrl bus
+    for wl in $(wifi_ifaces); do
+        phy=$(iface_phy "$wl")
+        phy_supports_p2p "$phy" || continue
+        ctrl=$(p2p_control_iface "$wl")
+        [ -n "$ctrl" ] || continue
+        bus=1; [ "$(iface_bus "$wl")" = "interno" ] && bus=0
+        echo "$bus $(iface_mac "$wl") $ctrl"
+    done | sort | awk '{print $3}'
+}
+
+# Resolve DISPLAYn_P2P_DEV: aceita nome da interface (wlan1), p2p-dev-wlan1 ou o MAC do adaptador
+resolve_p2p_dev_pin() {
+    local pin="${1,,}" wl
+    for wl in $(wifi_ifaces); do
+        if [ "$pin" = "$wl" ] || [ "$pin" = "p2p-dev-$wl" ] || [ "$pin" = "$(iface_mac "$wl")" ]; then
+            p2p_control_iface "$wl"
+            return
+        fi
+    done
+}
+
+# Tabela de adaptadores (usada pelo instalador e pelo all-dual.sh); retorna o nº de compatíveis
+print_wifi_adapters() {
+    local wl phy ok=0 total=0 status
+    echo "Adaptadores Wi-Fi encontrados:"
+    for wl in $(wifi_ifaces); do
+        total=$((total + 1))
+        phy=$(iface_phy "$wl")
+        if phy_supports_p2p "$phy"; then status="Wi-Fi Direct: SIM"; ok=$((ok + 1)); else status="Wi-Fi Direct: NÃO (sem P2P-client/P2P-GO; não serve para o LazyCast)"; fi
+        printf '  %-10s driver=%-12s %-8s MAC=%s  %s\n' "$wl" "$(iface_driver "$wl")" "$(iface_bus "$wl")" "$(iface_mac "$wl")" "$status"
+    done
+    [ "$total" -eq 0 ] && echo "  (nenhum)"
+    return "$ok"
+}

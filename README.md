@@ -28,6 +28,7 @@ Esta versão suporta **somente o Raspberry Pi 5** (Raspberry Pi OS Bookworm 64-b
 - Raspberry Pi 5 com Raspberry Pi OS Bookworm (64-bit) e ambiente gráfico.
 - Pacotes (`vlc busybox wpasupplicant libx11-dev build-essential python3 python3-evdev libnotify-bin`): o `install.sh` instala automaticamente; é preciso apenas internet.
 - `wpa_cli` precisa enxergar a interface `p2p-dev-wlan0` (`sudo wpa_cli interface`). Se a lista vier vazia, o Wi-Fi P2P não está acessível ao LazyCast (comum quando o NetworkManager controla o `wpa_supplicant`).
+- **Adaptador USB (dual display):** funciona com qualquer adaptador USB Wi-Fi **cujo driver liste `P2P-client` e `P2P-GO`** (confira: `iw phy | grep -A9 "Supported interface modes"`), em qualquer porta USB. A escolha é por capacidade, não pelo nome (`wlan1`/`wlx…`), e a ordem é estável (interno primeiro, depois por MAC). Para fixar qual adaptador atende cada display: `DISPLAY1_P2P_DEV`/`DISPLAY2_P2P_DEV` no `lazycast-config.conf` (nome da interface ou MAC). Chips sem P2P, como o Ralink RT5370 (`rt2800usb`), **não servem**; o instalador mostra a tabela de adaptadores e avisa.
 - **Dual display:** o Wi-Fi interno sustenta **um** grupo P2P por vez. Para dois displays independentes é necessário **um segundo adaptador Wi-Fi USB com suporte a P2P**; a instância *N* usa a *N*-ésima interface `p2p-dev-*`.
 
 ## Instalação

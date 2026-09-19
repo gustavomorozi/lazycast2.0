@@ -72,6 +72,12 @@ if [ ${#missing_pkgs[@]} -gt 0 ]; then
     fi
 fi
 
+# Adaptadores Wi-Fi e compatibilidade com Wi-Fi Direct (o interno e qualquer USB, em qualquer porta)
+source ./lib-p2p.sh
+print_wifi_adapters
+P2P_ADAPTERS=$?
+echo ""
+
 # Detectar modelo do Raspberry Pi
 echo "Detectando modelo do Raspberry Pi..."
 CPU_INFO=$(grep Hardware /proc/cpuinfo)
@@ -259,6 +265,12 @@ echo "✓ Arquivo de configuração criado: lazycast-config.conf"
 # O arquivo foi criado como root; devolver a posse ao usuário que chamou o sudo
 if [ -n "$SUDO_USER" ]; then
     chown "$SUDO_USER":"$(id -gn "$SUDO_USER")" lazycast-config.conf
+fi
+
+if [ "$DISPLAY_MODE" = "2" ] && [ "$P2P_ADAPTERS" -lt 2 ]; then
+    echo "⚠ Dual display precisa de 2 adaptadores Wi-Fi com Wi-Fi Direct (P2P-client + P2P-GO); há $P2P_ADAPTERS."
+    echo "  O Wi-Fi interno do Pi 5 sustenta um grupo por vez. Plugue um adaptador USB compatível (qualquer porta)"
+    echo "  e confira com: iw phy | grep -A9 'Supported interface modes'. Até lá só o Display 1 funciona."
 fi
 
 # Compilar o projeto
