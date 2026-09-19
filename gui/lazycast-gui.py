@@ -198,14 +198,14 @@ class HomePage(Gtk.Box):
 
 # ============================================================ Prévia das telas
 class PreviewWindow(Gtk.Window):
-    THUMB_W, THUMB_H = 420, 236
+    THUMB_W, THUMB_H = 330, 186
 
     def __init__(self, parent, home):
         super().__init__(title='Telas recebidas')
         self.set_transient_for(parent)
         self.home = home
         self.set_border_width(16)
-        self.set_default_size(900, 340)
+        self.set_default_size(730, 300)
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         self.add(outer)
         self.row = Gtk.Box(spacing=14, homogeneous=True)

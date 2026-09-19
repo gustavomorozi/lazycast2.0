@@ -61,6 +61,7 @@ command -v busybox >/dev/null 2>&1 || missing_pkgs+=(busybox)
 command -v vlc >/dev/null 2>&1 || missing_pkgs+=(vlc)
 command -v python3 >/dev/null 2>&1 || missing_pkgs+=(python3)
 command -v iw >/dev/null 2>&1 || missing_pkgs+=(iw)
+python3 -c "import gi; gi.require_version('Gtk', '3.0')" >/dev/null 2>&1 || missing_pkgs+=(python3-gi gir1.2-gtk-3.0)
 command -v xrandr >/dev/null 2>&1 || missing_pkgs+=(x11-xserver-utils)
 python3 -c "import evdev" >/dev/null 2>&1 || missing_pkgs+=(python3-evdev)
 command -v notify-send >/dev/null 2>&1 || missing_pkgs+=(libnotify-bin)
@@ -317,6 +318,14 @@ chmod +x all.sh all-dual.sh install.sh install-service.sh setup-hdmi.sh
 chmod +x lazycast-background.sh lazycast-status.sh
 chmod +x clear_pairing.sh check_dependencies.sh lib-p2p.sh
 chmod +x d2.py d2-multi.py project.py
+
+# Painel gráfico: atalho no menu de aplicativos (gui/lazycast-gui.py)
+if [ -d /usr/share/applications ]; then
+    sed "s|@DIR@|$(pwd)|" gui/lazycast.desktop.in > /usr/share/applications/lazycast.desktop
+    chmod 644 /usr/share/applications/lazycast.desktop
+    chmod +x gui/lazycast-gui.py
+    echo "✓ Painel gráfico instalado: menu de aplicativos > LazyCast"
+fi
 
 # Pi 5 + dual display: garante driver KMS/HDMI sem perguntar (reboot fica a cargo do usuário)
 if [ "$PI5_DETECTED" = true ] && [ "$DISPLAY_MODE" = "2" ]; then

@@ -7,7 +7,6 @@ passam por `run()`, que os testes substituem.
 """
 import os
 import re
-import shlex
 import subprocess
 
 APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
