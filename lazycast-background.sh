@@ -22,6 +22,29 @@ append_log() {
     echo "$@" >> "$LOG_FILE" 2>/dev/null || echo "$@" >> /tmp/lazycast-background.log
 }
 
+# [RPi5/Bookworm] Ambiente da sessão gráfica do usuário. Sem um barramento D-Bus válido
+# o notify-send dispara 'dbus-launch --autolaunch' (deixava xdg-desktop-portal, gvfsd etc.
+# órfãos a cada notificação).
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export DISPLAY="${DISPLAY:-:0}"
+if [ -z "$WAYLAND_DISPLAY" ] && [ -S "$XDG_RUNTIME_DIR/wayland-0" ]; then
+    export WAYLAND_DISPLAY=wayland-0
+fi
+# No boot a sessão pode ainda não existir: o barramento é verificado a cada notificação
+# (sem bloquear a inicialização do serviço).
+refresh_dbus() {
+    if [ -S "$XDG_RUNTIME_DIR/bus" ]; then
+        export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+    else
+        unset DBUS_SESSION_BUS_ADDRESS
+    fi
+}
+
+# Evita crescimento ilimitado do log (all.sh imprime continuamente)
+if [ -f "$LOG_FILE" ] && [ "$(stat -c %s "$LOG_FILE" 2>/dev/null || echo 0)" -gt 5242880 ]; then
+    : > "$LOG_FILE"
+fi
+
 # Carregar configurações
 if [ -f lazycast-config.conf ]; then
     source lazycast-config.conf
@@ -35,14 +58,18 @@ send_notification() {
     local title="$1"
     local message="$2"
     local icon="$3"
-    
-    # Tenta diferentes métodos de notificação
-    if command -v notify-send &> /dev/null; then
-        notify-send "$title" "$message" --icon="$icon" 2>/dev/null
-    elif command -v zenity &> /dev/null; then
-        zenity --notification --text="$title: $message" 2>/dev/null
+
+    refresh_dbus
+    # Só notifica se houver sessão D-Bus do usuário (evita dbus-launch);
+    # timeout evita que uma notificação pendurada trave o serviço.
+    if [ -n "$DBUS_SESSION_BUS_ADDRESS" ]; then
+        if command -v notify-send &> /dev/null; then
+            timeout 5 notify-send "$title" "$message" --icon="$icon" 2>/dev/null
+        elif command -v zenity &> /dev/null; then
+            timeout 5 zenity --notification --text="$title: $message" 2>/dev/null
+        fi
     fi
-    
+
     # Log da notificação
     append_log "[$(date '+%Y-%m-%d %H:%M:%S')] NOTIFICAÇÃO: $title - $message"
 }
@@ -50,9 +77,9 @@ send_notification() {
 # Função para iniciar LazyCast
 start_lazycast() {
     local mode=$1
-    
+
     send_notification "LazyCast" "Iniciando serviço de display wireless..." "display"
-    
+
     if [ "$mode" = "2" ]; then
         # Modo Dual Display
         send_notification "LazyCast Dual Display" "Iniciando dois displays independentes..." "video-display"
@@ -67,30 +94,40 @@ start_lazycast() {
 # Função para monitorar status
 monitor_status() {
     local mode=$1
-    
+    local ready_notified=0
+    # O log é persistente: só considera "display ready" escrito APÓS este início
+    local log_offset
+    log_offset=$(stat -c %s "$LOG_FILE" 2>/dev/null || echo 0)
+
     while true; do
         sleep 30
-        
+
         # Verificar se o LazyCast está rodando
-        if pgrep -f "all.sh" > /dev/null || pgrep -f "all-dual.sh" > /dev/null; then
+        # [fix] antes: pgrep -f "all.sh" também casava 'install.sh' ('.' é curinga no regex)
+        if pgrep -f "(^|[ /])all(-dual)?[.]sh( |$)" > /dev/null; then
             # LazyCast está rodando
-            if [ "$mode" = "2" ]; then
-                if [ -f "lazycast_instance_display1/lazycast_display1.log" ] && \
-                   [ -f "lazycast_instance_display2/lazycast_display2.log" ]; then
-                    # Verificar se ambos os displays estão ativos
-                    if grep -q "The display is ready" lazycast_instance_display1/lazycast_display1.log && \
+            if [ "$ready_notified" = "0" ]; then
+                if [ "$mode" = "2" ]; then
+                    if [ -f "lazycast_instance_display1/lazycast_display1.log" ] && \
+                       [ -f "lazycast_instance_display2/lazycast_display2.log" ] && \
+                       grep -q "The display is ready" lazycast_instance_display1/lazycast_display1.log && \
                        grep -q "The display is ready" lazycast_instance_display2/lazycast_display2.log; then
                         send_notification "LazyCast" "Ambos os displays estão prontos e aguardando conexão" "video-display"
+                        ready_notified=1  # [fix] antes: repetia a notificação a cada 30 s
                     fi
-                fi
-            else
-                if [ -f "$LOG_FILE" ] && grep -q "The display is ready" "$LOG_FILE"; then
-                    send_notification "LazyCast" "Display pronto e aguardando conexão" "display"
+                else
+                    if [ -f "$LOG_FILE" ] && \
+                       tail -c +$((log_offset + 1)) "$LOG_FILE" | grep -q "The display is ready"; then
+                        send_notification "LazyCast" "Display pronto e aguardando conexão" "display"
+                        ready_notified=1
+                    fi
                 fi
             fi
         else
             # LazyCast não está rodando, tentar reiniciar
             send_notification "LazyCast" "Serviço parado, reiniciando..." "dialog-warning"
+            ready_notified=0
+            log_offset=$(stat -c %s "$LOG_FILE" 2>/dev/null || echo 0)
             start_lazycast "$mode"
         fi
     done
@@ -103,19 +140,19 @@ if [ "$DISPLAY_MODE" = "2" ]; then
     send_notification "LazyCast Dual Display" "Modo dual display ativado" "video-display"
     send_notification "LazyCast" "Display 1: $DISPLAY1_NAME" "display"
     send_notification "LazyCast" "Display 2: $DISPLAY2_NAME" "display"
-    
+
     # Iniciar em background
     start_lazycast "2" &
-    
+
     # Iniciar monitoramento
     monitor_status "2" &
 else
     send_notification "LazyCast" "Modo single display ativado" "display"
     send_notification "LazyCast" "Display: $DISPLAY1_NAME" "display"
-    
+
     # Iniciar em background
     start_lazycast "1" &
-    
+
     # Iniciar monitoramento
     monitor_status "1" &
 fi

@@ -1,5 +1,15 @@
 # Changelog - LazyCast Dual Display
 
+## [Não lançado] - Revisão Raspberry Pi 5
+
+### Corrigido
+- `all-dual.sh`: portas RTP e telas distintas por instância (antes ambas em 1028 e `pkill vlc` matava o player da outra); uma interface `p2p-dev` por display; `lease_file` do udhcpd próprio; limpeza de filhos ao parar (Ctrl+C/SIGTERM).
+- `d2.py`/`d2-multi.py`: `LAZYCAST_RTP_PORT/SCREEN/NAME`; nome anunciado configurável (antes `raspberrypi` fixo); detecção do Pi 5 (BCM2712/`device-tree/model`); EDID via DRM; `pkill` com escopo por porta; laço principal com `select()` e watchdog em segundos (antes `ps au` em laço apertado).
+- `setup-hdmi.sh`: não grava mais `vc4-fkms-v3d`/`hdmi_mode` (inválidos no Pi 5); reverte o que a versão antiga gravou.
+- `lazycast-background.sh`/`lazycast.service`: ambiente D-Bus/Wayland (evita `dbus-launch` órfãos), notificação "pronto" só uma vez, `pgrep` que casava `install.sh`, log limitado.
+- `all.sh`: `cd` para o diretório do script, udhcpd sem duplicar, laço sem consumo de 100% de CPU.
+- `install.sh`: verificação/instalação de dependências; chaves de porta/tela no config.
+
 ## [Versão 2.4] - Correções de Bugs e Melhorias de Estabilidade
 
 ### Corrigido

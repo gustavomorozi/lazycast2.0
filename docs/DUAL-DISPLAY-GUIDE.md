@@ -25,7 +25,7 @@ O instalador irá guiá-lo através das seguintes opções:
 
 1. **Modo de Display**: Escolha entre Single Display (1) ou Dual Display (2)
 2. **Nomes dos Displays**: Configure nomes distintos para cada display
-3. **Player**: Escolha o player de vídeo (player1, player2, omxplayer, VLC)
+3. **Player**: VLC (único suportado no Raspberry Pi 5)
 4. **Áudio**: Configure a saída de áudio (HDMI, 3.5mm, ALSA)
 
 ### 3. Configurar HDMI
@@ -151,13 +151,9 @@ lazycast2.0/
 ├── d2-multi.py             # Receiver multi-display (novo)
 ├── lazycast_instance_display1/  # Instância display 1
 │   ├── d2.py
-│   ├── player.bin
-│   ├── h264.bin
 │   └── lazycast_display1.log
 └── lazycast_instance_display2/  # Instância display 2
     ├── d2.py
-    ├── player.bin
-    ├── h264.bin
     └── lazycast_display2.log
 ```
 

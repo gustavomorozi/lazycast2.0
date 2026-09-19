@@ -35,6 +35,9 @@ cp "$LAZYCAST_DIR/lazycast.service" /etc/systemd/system/
 # Ajustar caminho e usuário no arquivo de serviço
 sed -i "s|/home/pi/lazycast2.0|$LAZYCAST_DIR|g" /etc/systemd/system/lazycast.service
 sed -i "s|^User=.*|User=$LAZYCAST_USER|" /etc/systemd/system/lazycast.service
+# UID real do usuário no runtime dir / barramento D-Bus da sessão
+LAZYCAST_UID="$(id -u "$LAZYCAST_USER" 2>/dev/null || echo 1000)"
+sed -i "s|/run/user/[0-9]*|/run/user/$LAZYCAST_UID|g" /etc/systemd/system/lazycast.service
 echo "Diretório: $LAZYCAST_DIR"
 echo "Usuário: $LAZYCAST_USER"
 

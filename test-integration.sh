@@ -62,7 +62,7 @@ EOF
     printf '#!/bin/bash\necho "ifconfig $*" >> "$STUB_LOG"\n' > "$STUBS/ifconfig"
     printf '#!/bin/bash\necho "busybox $*" >> "$STUB_LOG"\n' > "$STUBS/busybox"
     # players: registram a chamada e ficam vivos como um player real
-    for p in vlc cvlc omxplayer; do
+    for p in vlc cvlc; do
         printf '#!/bin/bash\necho "%s $*" >> "$STUB_LOG"\ntrap "kill \\$!; exit 0" TERM INT\nsleep 300 & wait\n' "$p" > "$STUBS/$p"
     done
     chmod +x "$STUBS"/*
@@ -73,7 +73,7 @@ EOF
 # Cópia isolada do projeto para não sujar o checkout (all.sh faz sed em d2.py)
 make_sandbox() {
     local dir="$WORK/$1"
-    mkdir -p "$dir/player" "$dir/h264" "$dir/control"
+    mkdir -p "$dir/control"
     cp "$ROOT"/*.py "$ROOT"/*.sh "$dir/"
     mkdir -p "$dir/tests" && cp "$ROOT"/tests/*.py "$dir/tests/"
     echo "$dir"
@@ -213,7 +213,6 @@ EOF
     check "dual: duas instâncias iniciadas" bash -c "grep -q 'Instância TelaA iniciada' '$dir/dual.log' && grep -q 'Instância TelaB iniciada' '$dir/dual.log'"
     check "dual: PIDs numéricos capturados" grep -Eq "Display 1 PID: [0-9]+$" "$dir/dual.log"
     check "dual: log da instância 1 criado" test -s "$dir/lazycast_instance_display1/lazycast_display1.log"
-    check "dual: binários copiados para h264/ da instância" test -f "$dir/lazycast_instance_display1/h264/h264.bin"
     check "dual: 'The display is ready' na instância 1" grep -q "The display is ready" "$dir/lazycast_instance_display1/lazycast_display1.log"
     check "dual: instância 1 (127.0.0.1) negociou com a fonte" test "$src" -eq 0
     check "dual: player/sound do conf aplicados na instância 2" bash -c "grep -q '^sound_output_select = 1' '$dir/lazycast_instance_display2/d2.py'"
