@@ -52,10 +52,11 @@ test_bash_syntax "check_dependencies.sh"
 test_bash_syntax "test-environment.sh"
 test_bash_syntax "test-syntax.sh"
 test_bash_syntax "make-executable.sh"
+test_bash_syntax "test-integration.sh"
 
 echo ""
 echo "Testando sintaxe Python..."
-for pyfile in d2.py d2-multi.py d2vlc.py d2win10debug.py newmice.py project.py scan.py; do
+for pyfile in d2.py d2-multi.py d2vlc.py d2win10debug.py newmice.py project.py scan.py tests/mock_source.py; do
     if python3 -m py_compile "$pyfile" 2>/dev/null; then
         echo "✓ Sintaxe correta: $pyfile"
         PASSED=$((PASSED + 1))

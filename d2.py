@@ -69,6 +69,29 @@ while True:
 		break
 
 
+rtsp_buffer = b''
+def recv_rtsp_message(s):
+	"""Lê uma mensagem RTSP completa (cabeçalhos + corpo por Content-Length).
+	Mensagens consecutivas que chegam no mesmo segmento TCP ficam no buffer."""
+	global rtsp_buffer
+	while True:
+		head_end = rtsp_buffer.find(b'\r\n\r\n')
+		if head_end != -1:
+			clen = 0
+			for line in rtsp_buffer[:head_end].decode(errors='replace').split('\r\n'):
+				if line.lower().startswith('content-length:'):
+					clen = int(line.split(':', 1)[1].strip())
+			total = head_end + 4 + clen
+			if len(rtsp_buffer) >= total:
+				msg = rtsp_buffer[:total]
+				rtsp_buffer = rtsp_buffer[total:]
+				return msg.decode(errors='replace')
+		chunk = s.recv(2048)
+		if not chunk:
+			msg = rtsp_buffer
+			rtsp_buffer = b''
+			return msg.decode(errors='replace')
+		rtsp_buffer += chunk
 
 
 tohid = [0, 41, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 45, 46, 42, 43, 20, 26, 8, 21, 23, 28, 24, 12, 18, 19, 47, 48, 40, 0, 4, 22, 7, 9, 10, 11, 13, 14, 15, 51, 52, 53, 0, 49, 29, 27, 6, 25, 5, 17, 16, 54, 55, 56, 0, 85, 0, 44, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 83, 71, 95, 96, 97, 86, 92, 93, 94, 87, 89, 90, 91, 98, 99, 0, 0, 0, 68, 69, 0, 0, 0, 0, 0, 0, 0, 88, 0, 84, 70, 0, 0, 74, 82, 75, 80, 79, 77, 81, 78, 73, 76, 0, 127, 129, 128, 0, 0, 0, 72, 
@@ -201,8 +224,7 @@ idrsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 idrsock.bind(idrsock_address)
 addr, idrsockport = idrsock.getsockname()
 
-data = sock.recv(2048)
-data = data.decode()
+data = recv_rtsp_message(sock)
 print("---M1--->\n" + data)
 s_data = 'RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: org.wfa.wfd1.0, SET_PARAMETER, GET_PARAMETER\r\n\r\n'
 print("<--------\n" + s_data)
@@ -214,15 +236,13 @@ s_data = 'OPTIONS * RTSP/1.0\r\nCSeq: 1\r\nRequire: org.wfa.wfd1.0\r\n\r\n'
 print("<---M2---\n" + s_data)
 sock.sendall(s_data.encode())
 
-data = sock.recv(2048)
-data = data.decode()
+data = recv_rtsp_message(sock)
 print("-------->\n" + data)
 m2data = data
 
 
 # M3
-data = sock.recv(2048)
-data = data.decode()
+data = recv_rtsp_message(sock)
 print("---M3--->\n" + data)
 
 msg = 'wfd_client_rtp_ports: RTP/AVP/UDP;unicast 1028 0 mode=play\r\n'
@@ -278,8 +298,7 @@ sock.sendall(m3resp.encode())
 
 
 # M4
-data = sock.recv(2048)
-data = data.decode()
+data = recv_rtsp_message(sock)
 print("---M4--->\n" + data)
 
 s_data = 'RTSP/1.0 200 OK\r\nCSeq: 3\r\n\r\n'
@@ -299,8 +318,8 @@ for entry in messagelist:
 				if item.startswith("port="):
 					uibcport = item.split("=")[1]
 					break
-		print('uibcport:'+uibcport+"\n")
-		if 'none' not in uibcport and enable_mouse_keyboard == 1:
+		print('uibcport:'+str(uibcport)+"\n")
+		if uibcport and 'none' not in uibcport and enable_mouse_keyboard == 1:
 			usehidc = True
 
 
@@ -368,8 +387,7 @@ def killall(control):
                 os.system('pkill controlhidc.bin')
 
 # M5
-data = sock.recv(2048)
-data = data.decode()
+data = recv_rtsp_message(sock)
 print("---M5--->\n" + data)
 
 s_data = 'RTSP/1.0 200 OK\r\nCSeq: 4\r\n\r\n'
@@ -384,8 +402,7 @@ m6req ='SETUP rtsp://'+sourceip+'/wfd1.0/streamid=0 RTSP/1.0\r\n'\
 print("<---M6---\n" + m6req)
 sock.sendall(m6req.encode())
 
-data = sock.recv(2048)
-data = data.decode()
+data = recv_rtsp_message(sock)
 print("-------->\n" + data)
 
 paralist=data.split(';')
@@ -398,7 +415,7 @@ print(serverport)
 
 paralist=data.split( )
 position=paralist.index('Session:')+1
-sessionid=paralist[position]
+sessionid=paralist[position].split(';')[0]
 
 
 
@@ -449,8 +466,7 @@ m7req ='PLAY rtsp://'+sourceip+'/wfd1.0/streamid=0 RTSP/1.0\r\n'\
 print("<---M7---\n" + m7req)
 sock.sendall(m7req.encode())
 
-data = sock.recv(2048)
-data = data.decode()
+data = recv_rtsp_message(sock)
 print("-------->\n" + data)
 
 print("---- Negotiation successful ----")
@@ -465,7 +481,10 @@ csnum = 102
 watchdog = 0
 while True:
 	try:
-		data = sock.recv(2048)
+		if rtsp_buffer:
+			data, rtsp_buffer = rtsp_buffer, b''
+		else:
+			data = sock.recv(2048)
 		data = data.decode()
 	except socket.error as e:
 		err = e.args[0]
@@ -513,12 +532,10 @@ while True:
 	else:
 		print(data)
 		watchdog = 0
-		if len(data)==0 or 'wfd_trigger_method: TEARDOWN' in data:
+		if len(data)==0:
 			killall(True)
 			sleep(1)
 			break
-		elif 'wfd_video_formats' in data and time.time() - negotiation_time > 5:
-			launchplayer(player_select)
 		messagelist=data.split('\r\n\r\n')
 		print(messagelist)
 		singlemessagelist=[x for x in messagelist if ('GET_PARAMETER' in x or 'SET_PARAMETER' in x )]
@@ -532,7 +549,23 @@ while True:
 			resp='RTSP/1.0 200 OK\r'+cseq+'\r\n\r\n';#cseq contains \n
 			print(resp)
 			sock.sendall(resp.encode())
-		
+
+		if 'wfd_trigger_method: TEARDOWN' in data:
+			csnum = csnum + 1
+			teardown ='TEARDOWN rtsp://'+sourceip+'/wfd1.0/streamid=0 RTSP/1.0\r\n'\
+			+'CSeq: '+str(csnum)+'\r\n'\
+			+'Session: '+str(sessionid)+'\r\n\r\n'
+			print(teardown)
+			try:
+				sock.sendall(teardown.encode())
+			except socket.error:
+				pass
+			killall(True)
+			sleep(1)
+			break
+		elif 'wfd_video_formats' in data and time.time() - negotiation_time > 5:
+			launchplayer(player_select)
+
 
 idrsock.close()
 sock.close()
