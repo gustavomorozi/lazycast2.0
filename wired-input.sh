@@ -87,6 +87,29 @@ fi
 mouse_args=(--no-mouse-events)
 [ "$LAZYCAST_VLC_MODE" = "hidden" ] && mouse_args=()
 
+# Sem monitor (hidden) e fluxo de rede: o VLC com --vout=dummy exibe quadros de forma intermitente
+# ("buffer deadlock prevented") e o snapshot da prévia falha. Nesse caso o ffmpeg do Pi decodifica o fluxo
+# e grava 1 quadro por segundo em lc<porta>-latest.jpg, que o painel lê (independe de janela e de relógio).
+use_ffmpeg_preview=0
+if [ "$LAZYCAST_VLC_MODE" = "hidden" ] && [ "$kind" = stream ] && command -v ffmpeg >/dev/null 2>&1; then
+    use_ffmpeg_preview=1
+fi
+preview_file="$snap_dir/lc$port-latest.jpg"
+
+start_ffmpeg_preview() {
+    ffmpeg -nostdin -hide_banner -loglevel error -fflags nobuffer -flags low_delay \
+        -probesize 500000 -analyzeduration 500000 \
+        -i "udp://0.0.0.0:$udp_port?fifo_size=2000000&overrun_nonfatal=1&timeout=5000000" \
+        -an -vf "fps=1,scale=960:-2" -q:v 6 -f image2 -update 1 -atomic_writing 1 -y "$preview_file" \
+        >/dev/null 2>&1 < /dev/null &
+    vlc_pid=$!
+}
+
+# 1 se o quadro de prévia é recente (fluxo chegando); usado para "conectada/desconectada"
+frame_fresh() {
+    [ -f "$preview_file" ] && [ $(( $(date +%s) - $(stat -c %Y "$preview_file") )) -le 4 ] && echo 1 || echo 0
+}
+
 start_vlc() {
     vlc "${vlc_mode_args[@]}" --video-title="$title" --intf dummy \
         --extraintf=oldrc --rc-unix="$snap_dir/vlc-$port.sock" --rc-fake-tty \
@@ -106,10 +129,10 @@ while :; do
         continue
     fi
     if [ -z "$vlc_pid" ] || ! kill -0 "$vlc_pid" 2>/dev/null; then
-        start_vlc
+        if [ "$use_ffmpeg_preview" = 1 ]; then start_ffmpeg_preview; else start_vlc; fi
         sleep 2
     fi
-    if [ "$kind" = usb ]; then now=1; else now=$(rc_playing); fi
+    if [ "$kind" = usb ]; then now=1; elif [ "$use_ffmpeg_preview" = 1 ]; then now=$(frame_fresh); else now=$(rc_playing); fi
     if [ "$now" = 1 ] && [ "$up" = 0 ]; then up=1; notify "Tela $n conectada ($label)"; fi
     if [ "$now" != 1 ] && [ "$up" = 1 ]; then up=0; notify "Tela $n desconectada ($label)"; fi
     sleep 1

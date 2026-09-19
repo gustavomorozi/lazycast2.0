@@ -159,7 +159,8 @@ def slot_ip(cfg, slot):
 
 def slot_streaming(port):
     """Há VLC recebendo nesta porta RTP?"""
-    code, out = run(['pgrep', '-f', 'rtp://0.0.0.0:%s' % port])
+    # o canal de snapshot lc<porta>- aparece na linha de comando do VLC (Miracast/USB/rede) e do ffmpeg (prévia)
+    code, out = run(['pgrep', '-f', 'lc%s-' % port])
     return code == 0
 
 
@@ -282,11 +283,28 @@ def latest_snapshot(directory, port):
     return data or None
 
 
+def latest_frame(directory, port, max_age=6.0):
+    """Quadro de prévia gravado pelo ffmpeg do Pi (lc<porta>-latest.jpg) se for recente; senão None.
+    Usado no modo sem monitor com fluxo de rede (o VLC sem janela não entrega snapshots de forma confiável)."""
+    import time
+    path = os.path.join(directory, 'lc%s-latest.jpg' % port)
+    try:
+        if time.time() - os.path.getmtime(path) > max_age:
+            return None
+        with open(path, 'rb') as f:
+            return f.read() or None
+    except OSError:
+        return None
+
+
 def request_snapshot(port, wait=1.2, directory=None):
     """Pede um snapshot ao VLC daquela porta (socket RC) e devolve os bytes JPEG, ou None."""
     import socket
     import time
     directory = directory or snap_dir()
+    frame = latest_frame(directory, port)
+    if frame:
+        return frame
     sock_path = os.path.join(directory, 'vlc-%s.sock' % port)
     try:
         s = socket.socket(socket.AF_UNIX)

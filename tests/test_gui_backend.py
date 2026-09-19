@@ -125,8 +125,8 @@ class StatusTests(unittest.TestCase):
                       'iw dev p2p-wlan0-5 station dump': (0, stations),
                       'iw dev': (0, '\tInterface p2p-wlan0-5\n'),
                       'busybox dumpleases': (0, leases),
-                      'pgrep -f rtp://0.0.0.0:1028': (0, '1\n'),
-                      'pgrep -f rtp://0.0.0.0:1030': (1, '')})
+                      'pgrep -f lc1028-': (0, '1\n'),
+                      'pgrep -f lc1030-': (1, '')})
         st = backend.get_status(self.CFG)
         self.assertEqual(st['state'], 'connected')
         self.assertEqual(st['slots'][0]['source'], 'S25-Ultra')
@@ -179,6 +179,18 @@ class SnapshotTests(unittest.TestCase):
             f.write(b'outra-porta')
         self.assertEqual(backend.latest_snapshot(d, '1028'), b'frame1')
         self.assertEqual(sorted(os.listdir(d)), ['lc1030-00001.jpg'])
+
+    def test_quadro_do_ffmpeg_recente_e_antigo(self):
+        import time
+        d = tempfile.mkdtemp()
+        p = os.path.join(d, 'lc1028-latest.jpg')
+        with open(p, 'wb') as f:
+            f.write(b'quadro')
+        self.assertEqual(backend.latest_frame(d, '1028'), b'quadro')
+        self.assertEqual(backend.request_snapshot('1028', wait=0.1, directory=d), b'quadro')
+        os.utime(p, (time.time() - 60, time.time() - 60))
+        self.assertIsNone(backend.latest_frame(d, '1028'))
+        self.assertIsNone(backend.latest_frame(d, '1030'))
 
     def test_sem_arquivos(self):
         self.assertIsNone(backend.latest_snapshot(tempfile.mkdtemp(), '1028'))

@@ -85,6 +85,8 @@ check "entrada com fio: wired-input.sh (usb:/stream:) ligado ao all.sh" bash -c 
 
 check "sem janela (vout=dummy) o VLC não usa --no-mouse-events (quebra o snapshot)" bash -c "grep -q \"vlc_hidden else '--no-mouse-events'\" d2.py && grep -q 'mouse_args=()' wired-input.sh"
 
+check "prévia sem monitor por ffmpeg (fluxo de rede) e leitura pelo painel" bash -c "grep -q 'start_ffmpeg_preview' wired-input.sh && grep -q 'latest_frame' gui/backend.py"
+
 # Serviço: ambiente de sessão presente (evita dbus-launch órfão)
 check "lazycast.service define XDG_RUNTIME_DIR e D-Bus" bash -c "grep -q XDG_RUNTIME_DIR lazycast.service && grep -q DBUS_SESSION_BUS_ADDRESS lazycast.service"
 check "background usa timeout no notify-send" grep -q 'timeout 5 notify-send' lazycast-background.sh
