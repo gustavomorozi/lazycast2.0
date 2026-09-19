@@ -65,8 +65,9 @@ echo "Habilitando serviço LazyCast..."
 systemctl enable lazycast.service
 
 # Iniciar serviço
-echo "Iniciando serviço LazyCast..."
-systemctl start lazycast.service
+echo "Iniciando (ou reiniciando) serviço LazyCast..."
+# restart: se já estava ativo (reinstalação), "start" não recarregaria o código novo
+systemctl restart lazycast.service
 
 # Verificar status
 sleep 2
