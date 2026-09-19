@@ -43,6 +43,7 @@ for dev in $(sudo wpa_cli interface 2>/dev/null | grep -E "^p2p-dev-"); do
 	sudo wpa_cli -i "$dev" remove_network all >/dev/null 2>&1 || true
 done
 
+pause_networkmanager
 cleanup_orphan_p2p_ifaces
 
 while :
@@ -62,6 +63,9 @@ do
 		sudo wpa_cli -i$p2pdevinterface set device_name "$display_name"
 		sudo wpa_cli -i$p2pdevinterface set device_type 7-0050F204-1
 		sudo wpa_cli -i$p2pdevinterface set p2p_go_ht40 1
+		# [RPi5] Sem wifi_display=1 o wpa_supplicant NÃO inclui o IE WFD nas respostas (log: "Wi-Fi Display
+		# disabled - do not include WFD IE") e o Windows/Android nunca listam o receptor.
+		sudo wpa_cli -i$p2pdevinterface set wifi_display 1
 		sudo wpa_cli -i$p2pdevinterface wfd_subelem_set 0 000600111c44012c
 		sudo wpa_cli -i$p2pdevinterface wfd_subelem_set 1 0006000000000000
 		sudo wpa_cli -i$p2pdevinterface wfd_subelem_set 6 000700000000000000
@@ -114,6 +118,7 @@ do
 	echo $p2pinterface
 
 	sudo ifconfig $p2pinterface $display_ip
+	register_wps_pin "$p2pinterface" "$LAZYCAST_PIN"
 	printf "start	$dhcp_start\n">udhcpd.conf
 	printf "end	$dhcp_end\n">>udhcpd.conf
 	printf "interface	$p2pinterface\n">>udhcpd.conf

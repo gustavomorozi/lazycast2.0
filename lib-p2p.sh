@@ -21,3 +21,56 @@ cleanup_orphan_p2p_ifaces() {
         fi
     done
 }
+
+# O NetworkManager (Pi 5 / Bookworm-Trixie) desliga o grupo P2P menos de 1 s após o
+# wpa_supplicant criá-lo (P2P-GROUP-STARTED seguido de AP-DISABLED). Testado no Pi 5:
+# com o NetworkManager pausado (SIGSTOP) o grupo permanece; ativo, é removido, mesmo com
+# unmanaged-devices. Por isso ele é pausado enquanto o LazyCast roda e retomado ao sair.
+# Efeito: o Wi-Fi já conectado continua, mas não reconecta sozinho durante o uso.
+NM_PAUSED=0
+
+# Espera (até ~60 s) a rede subir no boot para não pausar o NetworkManager antes de conectar.
+wait_for_network() {
+    command -v nmcli >/dev/null 2>&1 || return 0
+    local i
+    for i in $(seq 1 30); do
+        nmcli -t -f STATE general 2>/dev/null | grep -q '^connected' && return 0
+        sleep 2
+    done
+}
+
+resume_networkmanager() {
+    if [ "$NM_PAUSED" = "1" ]; then
+        sudo killall -CONT NetworkManager 2>/dev/null
+        NM_PAUSED=0
+    fi
+}
+
+pause_networkmanager() {
+    pgrep -x NetworkManager >/dev/null 2>&1 || return 0
+    wait_for_network
+    sudo killall -STOP NetworkManager 2>/dev/null && NM_PAUSED=1
+    trap 'resume_networkmanager; exit 0' INT TERM HUP
+    trap 'resume_networkmanager' EXIT
+}
+
+# PIN WPS do grupo P2P. Sem um PIN registrado (wps_pin), o Windows/Android pedem PIN e não
+# há nenhum aceito, então a conexão trava nessa tela (o commit que "removeu o PIN" quebrou isso).
+# O PIN vem de LAZYCAST_PIN no lazycast-config.conf (gerado aleatoriamente pelo install.sh).
+register_wps_pin() {
+    local group_if="$1" pin="${2:-$LAZYCAST_PIN}"
+    if [ -z "$pin" ]; then
+        echo "AVISO: LAZYCAST_PIN vazio no lazycast-config.conf; execute ./install.sh para gerar um PIN."
+        return 1
+    fi
+    sudo wpa_cli -i "$group_if" wps_pin any "$pin" >/dev/null
+}
+
+# Gera um PIN WPS de 8 dígitos com dígito verificador válido (7 aleatórios + checksum)
+gen_wps_pin() {
+    local n acc d
+    n=$(shuf -i 1000000-9999999 -n 1)
+    acc=$(( 3*(n/1000000%10) + (n/100000%10) + 3*(n/10000%10) + (n/1000%10) + 3*(n/100%10) + (n/10%10) + 3*(n%10) ))
+    d=$(( (10 - acc % 10) % 10 ))
+    echo "${n}${d}"
+}
