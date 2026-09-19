@@ -35,6 +35,10 @@ echo "Display 2: $DISPLAY2_NAME ($DISPLAY2_IP)"
 echo "=========================================="
 echo ""
 
+# Limpar informações de pareamento antigas
+echo 'Limpando informações de pareamento antigas...'
+sudo wpa_cli -i p2p-dev-wlan0 remove_network all 2>/dev/null || true
+
 # Função para iniciar uma instância do LazyCast
 start_display_instance() {
     local display_name=$1

@@ -91,14 +91,21 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_address = (sourceip, 7236)
 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+sock.settimeout(30)  # Timeout de 30 segundos para conexão
 
 connectcounter = 0
 while True: 
 	try:
 		sock.connect(server_address)
 	except socket.error as e:
-		sock.close()
-		sys.exit(1)
+		connectcounter = connectcounter + 1
+		if connectcounter < 3:
+			print('Retry ' + str(connectcounter) + '/3')
+			sleep(2)
+			continue
+		else:
+			sock.close()
+			sys.exit(1)
 	else:
 		break
 
@@ -437,7 +444,7 @@ def launchplayer(player_select):
 		if False: # Change False to True if you want to use gstreamer
 			os.system('gst-launch-1.0  -v  playbin   uri=udp://0.0.0.0:1028/wfd1.0/streamid=0  video-sink=autovideosink audio-sink=alsasink sync=false &')
 		else:
-			os.system('vlc --fullscreen rtp://0.0.0.0:1028/wfd1.0/streamid=0 --intf dummy --no-ts-trust-pcr --ts-seek-percent --network-caching=300 --no-mouse-events & ')
+			os.system('vlc --fullscreen rtp://0.0.0.0:1028/wfd1.0/streamid=0 --intf dummy --no-ts-trust-pcr --ts-seek-percent --network-caching=150 --no-mouse-events & ')
 	elif player_select == 1:
 		os.system('./player/player.bin '+str(idrsockport)+' '+str(sound_output_select)+' &')
 	elif player_select == 2:
@@ -490,11 +497,12 @@ while True:
 				if err == errno.EAGAIN or err == errno.EWOULDBLOCK:
 					processrunning = os.popen('ps au').read()
 					if player_select == 2 and 'h264.bin' not in processrunning:
+						print('Player2 parado, reiniciando...')
 						launchplayer(player_select)						
-						sleep(0.01)
+						sleep(0.5)
 					else:
 						watchdog = watchdog + 1
-						if watchdog == 70/0.01:
+						if watchdog >= 7000:  # Corrigido de 70/0.01
 							killall(True)
 							sleep(1)
 							break

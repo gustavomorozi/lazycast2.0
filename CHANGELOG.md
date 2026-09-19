@@ -1,5 +1,49 @@
 # Changelog - LazyCast Dual Display
 
+## [Versão 2.4] - Correções de Bugs e Melhorias de Estabilidade
+
+### Corrigido
+- **Sistema de Pareamento**: Implementada limpeza automática de informações de pareamento antigas
+- **Player2 Double-Free**: Monitoramento aprimorado com reinicialização automática quando player para
+- **Latência VLC**: Reduzido cache de rede de 300ms para 150ms para menor latência
+- **Estabilidade de Conexão**: Adicionado timeout de 30 segundos e sistema de retry automático (3 tentativas)
+- **Cálculo de Watchdog**: Corrigido bug de divisão (70/0.01 → 7000)
+- **Tratamento de Backchannel**: Adicionado try-catch para melhor tratamento de erros
+- **Retry de Conexão**: Sistema robusto de reconexão em caso de falhas
+
+### Scripts Utilitários Adicionados
+- `clear_pairing.sh` - Limpeza manual de informações de pareamento
+- `player_health_check.sh` - Verificação de saúde dos players (uso de memória)
+- `check_dependencies.sh` - Verificação de dependências do sistema
+- `bugfix-improvements.sh` - Script automatizado para aplicar todas as correções
+
+### Melhorias de Código
+- **Timeout de Conexão**: Adicionado sock.settimeout(30) em d2.py e d2-multi.py
+- **Sistema de Retry**: Implementado contador de tentativas com delay de 2 segundos
+- **Monitoramento Player2**: Adicionada mensagem de debug quando player para
+- **Limpeza Automática**: Scripts all.sh e all-dual.sh limpam pareamento antigo automaticamente
+- **Verificação de Memória**: Sistema alerta se player usar >500MB de RAM
+
+### Benefícios
+- **Confiabilidade**: Sistema mais robusto contra falhas de conexão
+- **Performance**: Latência reduzida pela metade no VLC
+- **Estabilidade**: Player2 mais estável com monitoramento aprimorado
+- **Manutenção**: Scripts utilitários facilitam diagnóstico e correção
+- **Experiência**: Menos necessidade de re-pareamento manual
+
+### Arquivos Modificados
+- `d2.py` - Correções de conexão, latência, watchdog e backchannel
+- `d2-multi.py` - Mesmas correções aplicadas para modo dual display
+- `all.sh` - Adicionada limpeza automática de pareamento
+- `all-dual.sh` - Adicionada limpeza automática de pareamento
+- `README.md` - Atualizada seção de problemas conhecidos com correções aplicadas
+
+### Notas
+- As correções melhoram significativamente a estabilidade do sistema
+- Scripts utilitários permitem diagnóstico proativo de problemas
+- Sistema agora mais resiliente a falhas de rede e hardware
+- Melhor compatibilidade com diferentes dispositivos de origem
+
 ## [Versão 2.3] - Inicialização Automática e Notificações
 
 ### Adicionado

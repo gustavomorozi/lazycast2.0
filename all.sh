@@ -32,6 +32,9 @@ fi
 
 LD_LIBRARY_PATH=/opt/vc/lib
 export LD_LIBRARY_PATH
+echo 'Limpando informações de pareamento antigas...'
+sudo wpa_cli -i p2p-dev-wlan0 remove_network all 2>/dev/null || true
+
 while :
 do
 	p2pdevinterface=$(sudo wpa_cli interface | grep -E "p2p-dev" | tail -1)
