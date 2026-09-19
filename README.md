@@ -36,7 +36,20 @@ A implementação de **Dual Display** para Raspberry Pi 5 foi desenvolvida para 
 # Descrição
 lazycast é um receptor de display WiFi simples. Foi originalmente desenvolvido para Raspberry Pi (como display) e Windows 8.1/10 (como fonte), mas **pode** também funcionar em outras plataformas Linux e fontes Miracast. (Para outros sistemas Linux, pule a seção de preparação. Para reprodução de vídeo de fontes Android, modifique a opção ``player_select`` em ``d2.py``.) Para sistemas Windows 10, o recurso Miracast over Infrastructure (**MICE**) também é suportado, o que pode proporcionar uma melhor experiência de usuário. Em geral, lazycast não requer recompilação do wpa_supplicant para suportar várias funcionalidades p2p, e deve funcionar em um Raspberry Pi "out of the box".
 
-# Sistema Operacional
+# Raspberry Pi 5 (Bookworm, 64-bit) - LEIA PRIMEIRO
+
+O Raspberry Pi 5 **não** tem OpenMAX/dispmanx (VideoCore IV) e usa apenas o driver KMS (`vc4-kms-v3d`). Portanto:
+
+- **Use sempre o player `0` (VLC).** Os players 1, 2 e 3 (OpenMAX/omxplayer) e `h264/`/`player/` não compilam nem rodam no Pi 5. O `install.sh` força a opção 0 e não compila `h264/` e `player/`.
+- **Não execute** as seções "Preparação" abaixo (userland/`buildme`, `vc4-fkms-v3d`, `hello_pi`): valem só para Pi 1-4 com Raspberry Pi OS Legacy 32-bit. `vc4-fkms-v3d` não existe no Pi 5.
+- Dependências: `sudo apt install vlc busybox wpasupplicant libx11-dev build-essential python3` (o `install.sh` oferece instalar).
+- O EDID é lido de `/sys/class/drm/card*-HDMI-A-*/edid` (o `tvservice` não existe no Pi 5).
+- **Dual Display:** o Wi-Fi interno do Pi só sustenta **um** grupo P2P. Para dois displays independentes é necessário **um segundo adaptador Wi-Fi USB com suporte a P2P** (a instância N usa a N-ésima interface `p2p-dev-*`). Sem ele, o Display 2 fica aguardando (aviso no log).
+- Cada instância usa porta RTP e tela próprias: `DISPLAY1_RTP_PORT=1028`, `DISPLAY2_RTP_PORT=1030`, `DISPLAY1_SCREEN=0`, `DISPLAY2_SCREEN=1` em `lazycast-config.conf`.
+- Bookworm usa NetworkManager; o `wpa_cli` precisa enxergar `p2p-dev-wlan0` (`sudo wpa_cli interface`). Se a lista vier vazia, o P2P não está acessível ao LazyCast.
+- `setup-hdmi.sh` agora apenas garante `vc4-kms-v3d` (e desfaz `fkms`/`hdmi_mode` gravados por versões antigas). Depois de mudanças, reinicie.
+
+# Sistema Operacional (Pi 1-4)
 Selecione "**Raspberry Pi OS (Legacy, 32-bit)** Uma porta do Debian Bullseye com atualizações de segurança e ambiente desktop" ao gravar o cartão SD. Debian Bookworm parece causar alguns problemas.
 
 Em um sistema operacional novo, instale ``cmake``:

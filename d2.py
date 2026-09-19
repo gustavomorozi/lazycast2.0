@@ -22,6 +22,8 @@ import time
 from time import sleep
 import sys
 import subprocess
+import shutil
+import select
 import argparse
 ##################### Settings #####################
 player_select = 2
@@ -37,6 +39,11 @@ disable_1920_1080_60fps = 1
 enable_mouse_keyboard = 0
 
 display_power_management = 0
+# [RPi5/dual] Definidos por all-dual.sh via ambiente; cada instancia precisa de
+# porta RTP propria, tela propria e nome proprio (antes: 1028 fixo p/ ambas).
+rtp_port = int(os.environ.get('LAZYCAST_RTP_PORT', '1028'))
+display_screen = int(os.environ.get('LAZYCAST_SCREEN', '0'))
+display_name = os.environ.get('LAZYCAST_NAME', 'raspberrypi')
 # 1: (For projectors) Put the display in sleep mode when not in use by lazycast 
 
 ####################################################
@@ -205,11 +212,41 @@ def hidcprocessing(hidcsock):
 
 cpuinfo = os.popen('grep Hardware /proc/cpuinfo')
 cpustr = cpuinfo.read()
-runonpi = 'BCM2835' in cpustr or 'BCM2711' in cpustr
+try:
+	with open('/proc/device-tree/model', 'rb') as _f:
+		pimodel = _f.read().decode(errors='replace')
+except OSError:
+	pimodel = ''
+# [RPi5] BCM2712 + /proc/device-tree/model (cpuinfo pode nao ter 'Hardware')
+runonpi = any(x in cpustr for x in ('BCM2835', 'BCM2711', 'BCM2712')) or 'Raspberry Pi' in pimodel
 cpuinfo.close()
 
+def dump_edid():
+	# [RPi5] tvservice nao existe com KMS/Pi 5: le o EDID do conector DRM (HDMI conectado).
+	import glob
+	if shutil.which('tvservice'):
+		os.system('tvservice -d edid.txt 2>/dev/null')
+		if os.path.exists('edid.txt') and os.path.getsize('edid.txt') > 0:
+			return
+	connectors = sorted(glob.glob('/sys/class/drm/card*-HDMI-A-*'))
+	idx = min(display_screen, len(connectors) - 1) if connectors else -1
+	order = ([connectors[idx]] if idx >= 0 else []) + [c for c in connectors if idx < 0 or c != connectors[idx]]
+	for c in order:
+		try:
+			with open(c + '/status') as f:
+				if f.read().strip() != 'connected':
+					continue
+			with open(c + '/edid', 'rb') as f:
+				data = f.read()
+		except OSError:
+			continue
+		if data:
+			with open('edid.txt', 'wb') as f:
+				f.write(data)
+			return
+
 if runonpi and not os.path.exists('edid.txt'):
-	os.system('tvservice -d edid.txt')
+	dump_edid()
 
 edidlen = 0
 if os.path.exists('edid.txt'):
@@ -245,7 +282,7 @@ m2data = data
 data = recv_rtsp_message(sock)
 print("---M3--->\n" + data)
 
-msg = 'wfd_client_rtp_ports: RTP/AVP/UDP;unicast 1028 0 mode=play\r\n'
+msg = 'wfd_client_rtp_ports: RTP/AVP/UDP;unicast ' + str(rtp_port) + ' 0 mode=play\r\n'
 if player_select == 2:
 	msg = msg + 'wfd_audio_codecs: LPCM 00000002 00\r\n'
 else:
@@ -277,7 +314,7 @@ if 'wfd_display_edid' in data and edidlen != 0:
 # 	msg = msg + 'microsoft_format_change_capability: supported\r\n'
 
 if 'intel_friendly_name' in data:
-	msg = msg + 'intel_friendly_name: raspberrypi\r\n'
+	msg = msg + 'intel_friendly_name: ' + display_name + '\r\n'
 if 'intel_sink_manufacturer_name' in data:
 	msg = msg + 'intel_sink_manufacturer_name: lazycast\r\n'
 if 'intel_sink_model_name' in data:
@@ -375,9 +412,9 @@ if usehidc:
 
 
 def killall(control):
-        os.system('pkill vlc')
-        os.system('pkill cvlc')
-        os.system('pkill gst-launch-1.0')
+        # [dual] escopo por porta RTP: 'pkill vlc' mataria o player da outra instancia
+        subprocess.call(['pkill', '-f', 'rtp://0.0.0.0:%d' % rtp_port])
+        subprocess.call(['pkill', '-f', 'udp://0.0.0.0:%d' % rtp_port])
         os.system('pkill player.bin')
         os.system('pkill h264.bin')
         if display_power_management == 1:
@@ -398,7 +435,7 @@ sock.sendall(s_data.encode())
 # M6
 m6req ='SETUP rtsp://'+sourceip+'/wfd1.0/streamid=0 RTSP/1.0\r\n'\
 +'CSeq: 5\r\n'\
-+'Transport: RTP/AVP/UDP;unicast;client_port=1028\r\n\r\n'
++'Transport: RTP/AVP/UDP;unicast;client_port='+str(rtp_port)+'\r\n\r\n'
 print("<---M6---\n" + m6req)
 sock.sendall(m6req.encode())
 
@@ -431,12 +468,12 @@ def launchplayer(player_select):
 	if player_select == 0:
 		# os.system('gst-launch-1.0 -v udpsrc port=1028 ! application/x-rtp,media=video,encoding-name=H264 ! queue ! rtph264depay ! avdec_h264 ! autovideosink &')
 		# os.system('gst-launch-1.0 -v udpsrc port=1028 ! video/mpegts ! tsdemux !  h264parse ! queue ! avdec_h264 ! ximagesink sync=false &')
-		# os.system('gst-launch-1.0  -v  playbin   uri=udp://0.0.0.0:1028/wfd1.0/streamid=0  video-sink=ximagesink audio-sink=alsasink sync=false &')
-		# os.system('gst-launch-1.0  -v  playbin   uri=udp://0.0.0.0:1028/wfd1.0/streamid=0  video-sink=xvimagesink audio-sink=alsasink sync=false &')
+		# os.system('gst-launch-1.0  -v  playbin   uri=udp://0.0.0.0:' + str(rtp_port) + '/wfd1.0/streamid=0  video-sink=ximagesink audio-sink=alsasink sync=false &')
+		# os.system('gst-launch-1.0  -v  playbin   uri=udp://0.0.0.0:' + str(rtp_port) + '/wfd1.0/streamid=0  video-sink=xvimagesink audio-sink=alsasink sync=false &')
 		if False: # Change False to True if you want to use gstreamer
-			os.system('gst-launch-1.0  -v  playbin   uri=udp://0.0.0.0:1028/wfd1.0/streamid=0  video-sink=autovideosink audio-sink=alsasink sync=false &')
+			os.system('gst-launch-1.0  -v  playbin   uri=udp://0.0.0.0:' + str(rtp_port) + '/wfd1.0/streamid=0  video-sink=autovideosink audio-sink=alsasink sync=false &')
 		else:
-			os.system('vlc --fullscreen rtp://0.0.0.0:1028/wfd1.0/streamid=0 --intf dummy --no-ts-trust-pcr --ts-seek-percent --network-caching=150 --no-mouse-events & ')
+			os.system('vlc --fullscreen --qt-fullscreen-screennumber=' + str(display_screen) + ' rtp://0.0.0.0:' + str(rtp_port) + '/wfd1.0/streamid=0 --intf dummy --no-ts-trust-pcr --ts-seek-percent --network-caching=150 --no-mouse-events & ')
 	elif player_select == 1:
 		os.system('./player/player.bin '+str(idrsockport)+' '+str(sound_output_select)+' &')
 	elif player_select == 2:
@@ -479,13 +516,17 @@ negotiation_time = time.time()
 
 csnum = 102
 watchdog = 0
+# [perf] antes: 'ps au' (fork) em laco apertado, watchdog=7000 iteracoes (~35 s).
+# Agora: select() com timeout e watchdog em segundos (mesmo limite de ~35 s).
+IDLE_TICK = 0.2
+WATCHDOG_TIMEOUT = 35
 while True:
 	try:
 		if rtsp_buffer:
 			data, rtsp_buffer = rtsp_buffer, b''
 		else:
 			data = sock.recv(2048)
-		data = data.decode()
+		data = data.decode(errors='replace')
 	except socket.error as e:
 		err = e.args[0]
 		if err == errno.EAGAIN or err == errno.EWOULDBLOCK:
@@ -495,14 +536,14 @@ while True:
 			except socket.error as e:
 				err = e.args[0]
 				if err == errno.EAGAIN or err == errno.EWOULDBLOCK:
-					processrunning = os.popen('ps au').read()
-					if player_select == 2 and 'h264.bin' not in processrunning:
+					select.select([sock, idrsock], [], [], IDLE_TICK)
+					if player_select == 2 and subprocess.call(['pgrep', '-x', 'h264.bin'], stdout=subprocess.DEVNULL) != 0:
 						print('Player2 parado, reiniciando...')
 						launchplayer(player_select)						
 						sleep(0.5)
 					else:
-						watchdog = watchdog + 1
-						if watchdog >= 7000:
+						watchdog = watchdog + IDLE_TICK
+						if watchdog >= WATCHDOG_TIMEOUT:
 							killall(True)
 							sleep(1)
 							break
@@ -571,7 +612,7 @@ idrsock.close()
 sock.close()
 
 
-if runonpi:
+if runonpi and shutil.which('lxpanel'):
 	os.system('nohup lxpanel --profile LXDE-pi &')
 
 if usehidc:

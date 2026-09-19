@@ -9,6 +9,9 @@
 #   under the GPL along with build & install instructions.
 #
 #################################################################################
+# O serviço/cron pode chamar este script de outro diretório
+cd "$(dirname "$0")" || exit 1
+
 # Carregar configurações se disponíveis
 if [ -f lazycast-config.conf ]; then
     source lazycast-config.conf
@@ -33,7 +36,10 @@ fi
 LD_LIBRARY_PATH=/opt/vc/lib
 export LD_LIBRARY_PATH
 echo 'Limpando informações de pareamento antigas...'
-sudo wpa_cli -i p2p-dev-wlan0 remove_network all 2>/dev/null || true
+# [fix] antes: p2p-dev-wlan0 fixo; agora todas as interfaces p2p-dev existentes
+for dev in $(sudo wpa_cli interface 2>/dev/null | grep -E "^p2p-dev-"); do
+	sudo wpa_cli -i "$dev" remove_network all >/dev/null 2>&1 || true
+done
 
 while :
 do
@@ -108,7 +114,9 @@ do
 	printf "option subnet 255.255.255.0\n">>udhcpd.conf
 	printf "option lease 10000">>udhcpd.conf
 	sleep 3
-	sudo busybox udhcpd ./udhcpd.conf 
+	# [fix] evita udhcpd duplicado a cada reconexão
+	sudo pkill -f "[u]dhcpd ./udhcpd.conf" 2>/dev/null
+	sudo busybox udhcpd ./udhcpd.conf
 	echo "The display is ready"
 	echo "Your device is called: $display_name"
 	while :
@@ -118,7 +126,8 @@ do
 			sed -i "s/^player_select = .*/player_select = $player_select/" d2.py
 			sed -i "s/^sound_output_select = .*/sound_output_select = $sound_output/" d2.py
 		fi
-		./d2.py $dhcp_start
+		# [fix] d2.py anuncia o nome configurado (antes: 'raspberrypi' fixo)
+		LAZYCAST_NAME="$display_name" ./d2.py "$dhcp_start"
 		if [ `sudo wpa_cli interface | grep -c "p2p-wl"` == 0 ] 
 		then
 			break
@@ -144,6 +153,7 @@ do
 					then
 						break
 					fi
+					sleep 0.5  # [perf] antes: laço ocupado a 100% de CPU
 				done
 				break
 			fi

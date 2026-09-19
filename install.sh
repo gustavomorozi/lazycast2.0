@@ -21,6 +21,24 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# Dependências (Raspberry Pi OS Bookworm / Pi 5). Sem elas o make do control falha (libx11-dev)
+# ou o receptor não sobe (busybox = udhcpd, vlc = player, wpa_cli = P2P).
+missing_pkgs=()
+command -v gcc >/dev/null 2>&1 || missing_pkgs+=(build-essential)
+command -v make >/dev/null 2>&1 || missing_pkgs+=(make)
+command -v wpa_cli >/dev/null 2>&1 || missing_pkgs+=(wpasupplicant)
+command -v busybox >/dev/null 2>&1 || missing_pkgs+=(busybox)
+command -v vlc >/dev/null 2>&1 || missing_pkgs+=(vlc)
+command -v python3 >/dev/null 2>&1 || missing_pkgs+=(python3)
+dpkg -s libx11-dev >/dev/null 2>&1 || missing_pkgs+=(libx11-dev)
+if [ ${#missing_pkgs[@]} -gt 0 ]; then
+    echo "Pacotes ausentes: ${missing_pkgs[*]}"
+    read -p "Instalar agora com apt? (S/n): " install_deps
+    if [[ ! "$install_deps" =~ ^[Nn]$ ]]; then
+        apt-get update && apt-get install -y "${missing_pkgs[@]}" || echo "⚠ Falha ao instalar dependências; continue manualmente."
+    fi
+fi
+
 # Detectar modelo do Raspberry Pi
 echo "Detectando modelo do Raspberry Pi..."
 CPU_INFO=$(grep Hardware /proc/cpuinfo)
@@ -176,6 +194,9 @@ DISPLAY1_DHCP_START="192.168.173.80"
 DISPLAY1_DHCP_END="192.168.173.80"
 DISPLAY1_SOUND_OUTPUT=$SOUND_OUTPUT
 DISPLAY1_PLAYER_SELECT=$PLAYER_SELECT
+# Porta RTP e tela (0 = HDMI-1) desta instância; devem ser diferentes entre os displays
+DISPLAY1_RTP_PORT=1028
+DISPLAY1_SCREEN=0
 
 # Configurações do Display 2 (HDMI-2)
 DISPLAY2_NAME="$DISPLAY2_NAME"
@@ -184,6 +205,8 @@ DISPLAY2_DHCP_START="192.168.174.80"
 DISPLAY2_DHCP_END="192.168.174.80"
 DISPLAY2_SOUND_OUTPUT=$SOUND_OUTPUT
 DISPLAY2_PLAYER_SELECT=$PLAYER_SELECT
+DISPLAY2_RTP_PORT=1030
+DISPLAY2_SCREEN=1
 
 # Configurações do Player
 # 0: non-RPi systems (using vlc or gstreamer)

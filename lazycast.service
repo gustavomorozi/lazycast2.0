@@ -8,10 +8,18 @@ User=pi
 WorkingDirectory=/home/pi/lazycast2.0
 Environment=LD_LIBRARY_PATH=/opt/vc/lib
 Environment=DISPLAY=:0
+# [RPi5/Bookworm] sessão gráfica do usuário (Wayland/Xwayland) e barramento D-Bus.
+# O UID (1000) é ajustado por install-service.sh. Sem isso, o notify-send disparava
+# 'dbus-launch --autolaunch' a cada notificação e deixava processos órfãos.
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+Environment=WAYLAND_DISPLAY=wayland-0
 LogsDirectory=lazycast
 ExecStart=/home/pi/lazycast2.0/lazycast-background.sh
 Restart=on-failure
 RestartSec=10
+KillMode=control-group
+TimeoutStopSec=15
 
 [Install]
 WantedBy=graphical.target
