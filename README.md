@@ -154,6 +154,50 @@ Para usar o modo dual display com duas saídas HDMI independentes:
 
 O LazyCast pode ser configurado para iniciar automaticamente no boot em background, com notificações na interface gráfica:
 
+## Teste e Validação
+
+### Teste de Desenvolvimento (Windows)
+
+Para verificar se o código está correto durante o desenvolvimento:
+
+```bash
+# Testar sintaxe Python
+python -m py_compile d2.py
+python -m py_compile d2-multi.py
+python -m py_compile project.py
+
+# Scripts de teste (disponíveis quando rodar em Linux/Raspberry Pi)
+./test-syntax.sh          # Testa sintaxe de todos os scripts bash
+./test-environment.sh    # Verifica ambiente do sistema
+./check_dependencies.sh   # Verifica dependências
+```
+
+### Teste em Hardware Real
+
+Para testar completo em Raspberry Pi, consulte o **[TESTING-GUIDE.md](TESTING-GUIDE.md)** que inclui:
+
+- Guia passo a passo para teste em hardware
+- Verificação de ambiente e dependências
+- Testes de conexão com Windows e Android
+- Testes de estabilidade e re-conexão
+- Solução de problemas
+- Critérios de sucesso
+
+### Validação Atual
+
+**Testes realizados em ambiente de desenvolvimento:**
+- ✅ Sintaxe Python: `d2.py` - sem erros
+- ✅ Sintaxe Python: `d2-multi.py` - sem erros
+- ✅ Estrutura de arquivos: correta
+- ✅ Scripts utilitários: criados e configurados
+
+**Testes pendentes (requer hardware Raspberry Pi):**
+- Teste de inicialização manual
+- Teste de conexão com dispositivos reais
+- Teste de dual display
+- Teste de serviço systemd
+- Teste de estabilidade de longa duração
+
 **Durante a instalação:**
 O instalador perguntará se você deseja instalar o serviço de inicialização automática.
 
