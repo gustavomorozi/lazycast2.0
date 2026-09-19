@@ -96,7 +96,7 @@ register_wps_auth() {
 
 # O pool DHCP tem UM endereço (start=end). Sem isto, o 1º aparelho (ex.: celular) prende o IP pelo
 # tempo do aluguel e o 2º (ex.: Windows) não recebe DHCP e falha ao conectar. Observa as estações
-# Wi-Fi do grupo e, quando a última desconecta, zera os leases e reinicia o udhcpd (libera na hora).
+# Wi-Fi do grupo (a cada 1 s) e, quando a última desconecta, zera os leases e reinicia o udhcpd (libera na hora).
 # uso: watch_dhcp_release <interface do grupo> <conf do udhcpd> <arquivo de leases>
 watch_dhcp_release() {
     local g="$1" conf="$2" lease="$3" seen=0 n
@@ -111,7 +111,7 @@ watch_dhcp_release() {
             rm -f "$lease"
             sudo busybox udhcpd "$conf"
         fi
-        sleep 2
+        sleep 1
     done
 }
 
