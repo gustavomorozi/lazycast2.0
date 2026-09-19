@@ -81,6 +81,8 @@ check "scripts definem o nome da rede (p2p_ssid_postfix)" bash -c "grep -q set_p
 
 check "sem monitor o VLC roda sem janela (--vout=dummy) e há notificação de tela conectada" bash -c "grep -q 'vout=dummy' d2.py && grep -q 'setup_vlc_output' all.sh && grep -q 'setup_vlc_output' all-dual.sh && grep -q \"notify('Tela\" d2.py"
 
+check "entrada com fio: wired-input.sh (usb:/stream:) ligado ao all.sh" bash -c "bash -n wired-input.sh && grep -q 'wired-input.sh' all.sh && grep -q 'usb:' wired-input.sh && grep -q 'stream:' wired-input.sh"
+
 # Serviço: ambiente de sessão presente (evita dbus-launch órfão)
 check "lazycast.service define XDG_RUNTIME_DIR e D-Bus" bash -c "grep -q XDG_RUNTIME_DIR lazycast.service && grep -q DBUS_SESSION_BUS_ADDRESS lazycast.service"
 check "background usa timeout no notify-send" grep -q 'timeout 5 notify-send' lazycast-background.sh

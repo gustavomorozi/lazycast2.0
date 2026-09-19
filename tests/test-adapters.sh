@@ -97,6 +97,24 @@ setup_vlc_output 2 >/dev/null
 eq "1 monitor + 2 telas: layout aplicado (sem --fullscreen)" "$LAZYCAST_FULLSCREEN" "0"
 unset -f command pgrep kill sleep wlr-randr
 
+# --- fonte de cada tela (sem fio / capturadora USB / fluxo de rede)
+unset SCREEN1_SOURCE SCREEN2_SOURCE DISPLAY1_RTP_PORT DISPLAY2_RTP_PORT
+eq "padrão: as duas telas são sem fio" "$(wireless_screens 2 | tr '\n' ' ')" "0 1 "
+SCREEN1_SOURCE="usb:usb-MACROSILICON_USB_Video-video-index0"
+eq "tela 1 USB: só a tela 2 é sem fio" "$(wireless_screens 2 | tr '\n' ' ')" "1 "
+SCREEN2_SOURCE="stream:5006"
+eq "tela 1 USB e tela 2 stream: nenhuma sem fio" "$(wireless_screens 2 | tr '\n' ' ')" ""
+eq "screen_source lê SCREENn_SOURCE" "$(screen_source 1)" "stream:5006"
+is_wired_source "usb:abc" && ok "usb:<id> é fonte com fio" || bad "usb com fio" ""
+is_wired_source "stream:5004" && ok "stream:<porta> é fonte com fio" || bad "stream com fio" ""
+is_wired_source "auto" && bad "auto não é com fio" "" || ok "auto/wireless não são com fio"
+is_wired_source "usb:" && bad "usb: vazio é inválido" "" || ok "usb: sem id é rejeitado"
+is_wired_source "stream:abc" && bad "stream: não numérico é inválido" "" || ok "stream: não numérico é rejeitado"
+eq "porta RTP padrão da tela 1" "$(screen_rtp 0)" "1028"
+eq "porta RTP padrão da tela 2" "$(screen_rtp 1)" "1030"
+DISPLAY2_RTP_PORT=2000; eq "porta RTP configurada" "$(screen_rtp 1)" "2000"
+unset SCREEN1_SOURCE SCREEN2_SOURCE DISPLAY2_RTP_PORT
+
 # --- nome aleatório do display
 n1=$(random_animal_name)
 [[ "$n1" =~ ^LazyCast-[A-Z][a-z]+$ ]] && ok "nome aleatório no formato LazyCast-Animal ($n1)" || bad "formato do nome" "$n1"
