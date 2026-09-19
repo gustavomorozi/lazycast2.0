@@ -4,6 +4,35 @@ lazycast: Um Receptor Wireless Display Simples
 
 **NOVA FUNCIONALIDADE**: LazyCast agora suporta modo dual display para Raspberry Pi 5, permitindo dois receptores independentes, um para cada saída HDMI (HDMI-1 e HDMI-2).
 
+## Contexto e Créditos
+
+### Projeto Original
+Este projeto é baseado no **LazyCast** original desenvolvido por **Hsun-Wei Cho** (homeworkc). O LazyCast é um receptor de display wireless simples que implementa o protocolo Miracast, permitindo que dispositivos como Windows e Android transmitam conteúdo para Raspberry Pi e outras plataformas Linux.
+
+- **Desenvolvedor Original**: Hsun-Wei Cho (homeworkc)
+- **Repositório Original**: https://github.com/homeworkc/lazycast
+- **Licença**: GNU General Public License v3.0
+
+### LazyCast Dual Display
+A implementação de **Dual Display** para Raspberry Pi 5 foi desenvolvida para estender as capacidades do projeto original, permitindo operação simultânea de dois receptores Miracast independentes.
+
+- **Desenvolvedor Dual Display**: Gustavo Morozi
+- **Contribuição**: Sistema completo de dual display com instalação interativa, configuração automática e suporte a múltiplas instâncias
+- **Foco**: Raspberry Pi 5 com suporte a duas saídas HDMI independentes
+
+### Funcionalidades Adicionadas
+- Sistema de configuração centralizado (`lazycast-config.conf`)
+- Instalador interativo (`install.sh`)
+- Configuração automática de HDMI (`setup-hdmi.sh`)
+- Script de dual display (`all-dual.sh`)
+- Receiver multi-display (`d2-multi.py`)
+- Documentação completa em português
+
+### Agradecimentos
+- Ao desenvolvedor original Hsun-Wei Cho pela base sólida do projeto
+- À comunidade Raspberry Pi pelo suporte contínuo
+- A todos os contribuidores que testaram e melhoraram o projeto
+
 # Descrição
 lazycast é um receptor de display WiFi simples. Foi originalmente desenvolvido para Raspberry Pi (como display) e Windows 8.1/10 (como fonte), mas **pode** também funcionar em outras plataformas Linux e fontes Miracast. (Para outros sistemas Linux, pule a seção de preparação. Para reprodução de vídeo de fontes Android, modifique a opção ``player_select`` em ``d2.py``.) Para sistemas Windows 10, o recurso Miracast over Infrastructure (**MICE**) também é suportado, o que pode proporcionar uma melhor experiência de usuário. Em geral, lazycast não requer recompilação do wpa_supplicant para suportar várias funcionalidades p2p, e deve funcionar em um Raspberry Pi "out of the box".
 
@@ -195,3 +224,28 @@ Se você deseja executar MICE e wifi p2p simultaneamente, defina o parâmetro ``
 # Outros
 Algumas partes do player de vídeo1 foram modificadas dos códigos em https://github.com/Apress/raspberry-pi-gpu-audio-video-prog. Muitos thanks ao autor de "Raspberry Pi GPU Audio Video Programming" e, por extensão, autores do omxplayer.
 O uso de qualquer parte dos códigos neste projeto em produtos comerciais é proibido.
+
+# Contribuições e Suporte
+
+## Como Contribuir
+Contribuições são bem-vindas! Este projeto é open-source e beneficia-se da colaboração da comunidade. Áreas para contribuição incluem:
+- Melhorias no suporte a hardware
+- Otimização de performance
+- Correção de bugs
+- Traduções adicionais
+- Documentação
+- Testes em diferentes configurações
+
+## Suporte
+Para suporte e questões:
+- **Problemas Gerais**: Consulte o guia `DUAL-DISPLAY-GUIDE.md` para problemas específicos do dual display
+- **Issues**: Abra uma issue no repositório GitHub para bugs e solicitações de recursos
+- **Documentação**: Verifique o README e guias disponíveis antes de perguntar
+
+## Licença
+Este projeto é licenciado sob GNU General Public License v3.0. Veja o arquivo LICENSE para mais detalhes.
+
+## Repositórios Relacionados
+- **LazyCast Original**: https://github.com/homeworkc/lazycast
+- **LazyCast Dual Display**: https://github.com/gustavomorozi/lazycast2.0
+- **Raspberry Pi Userland**: https://github.com/raspberrypi/userland
