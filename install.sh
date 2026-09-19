@@ -58,6 +58,7 @@ command -v wpa_cli >/dev/null 2>&1 || missing_pkgs+=(wpasupplicant)
 command -v busybox >/dev/null 2>&1 || missing_pkgs+=(busybox)
 command -v vlc >/dev/null 2>&1 || missing_pkgs+=(vlc)
 command -v python3 >/dev/null 2>&1 || missing_pkgs+=(python3)
+command -v iw >/dev/null 2>&1 || missing_pkgs+=(iw)
 python3 -c "import evdev" >/dev/null 2>&1 || missing_pkgs+=(python3-evdev)
 command -v notify-send >/dev/null 2>&1 || missing_pkgs+=(libnotify-bin)
 dpkg -s libx11-dev >/dev/null 2>&1 || missing_pkgs+=(libx11-dev)
@@ -269,7 +270,7 @@ fi
 # Tornar scripts executáveis
 chmod +x all.sh all-dual.sh install.sh install-service.sh setup-hdmi.sh
 chmod +x lazycast-background.sh lazycast-status.sh
-chmod +x clear_pairing.sh player_health_check.sh check_dependencies.sh
+chmod +x clear_pairing.sh check_dependencies.sh lib-p2p.sh
 chmod +x d2.py d2-multi.py project.py
 
 # Pi 5 + dual display: garante driver KMS/HDMI sem perguntar (reboot fica a cargo do usuário)
