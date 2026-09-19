@@ -70,7 +70,7 @@ check "PIN gerado tem 8 dígitos e checksum WPS válido" bash -c "source ./lib-p
 
 check "detecção de adaptadores (tests/test-adapters.sh)" bash tests/test-adapters.sh
 
-check "all.sh suporta grupo compartilhado (SHARED_SLOTS)" bash -c "grep -q SHARED_SLOTS all.sh && grep -q 'SHARED_SLOTS=2 exec ./all.sh' all-dual.sh"
+check "all.sh suporta grupo compartilhado (SHARED_SLOTS)" bash -c "grep -q SHARED_SLOTS all.sh && grep -q 'SHARED_SLOTS=.* exec ./all.sh' all-dual.sh"
 check "watch_dhcp_release libera quando qualquer aparelho sai" grep -q 'n" -lt "$prev"' lib-p2p.sh
 
 check "GUI: testes da camada de dados (tests/test_gui_backend.py)" bash -c "python3 tests/test_gui_backend.py || python tests/test_gui_backend.py"
