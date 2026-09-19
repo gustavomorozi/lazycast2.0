@@ -30,14 +30,15 @@ export DISPLAY="${DISPLAY:-:0}"
 if [ -z "$WAYLAND_DISPLAY" ] && [ -S "$XDG_RUNTIME_DIR/wayland-0" ]; then
     export WAYLAND_DISPLAY=wayland-0
 fi
-# No boot a sessão pode ainda não existir: espera um pouco pelo barramento (não bloqueia o serviço)
-for _ in $(seq 1 15); do
-    [ -S "$XDG_RUNTIME_DIR/bus" ] && break
-    sleep 2
-done
-if [ -S "$XDG_RUNTIME_DIR/bus" ]; then
-    export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
-fi
+# No boot a sessão pode ainda não existir: o barramento é verificado a cada notificação
+# (sem bloquear a inicialização do serviço).
+refresh_dbus() {
+    if [ -S "$XDG_RUNTIME_DIR/bus" ]; then
+        export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+    else
+        unset DBUS_SESSION_BUS_ADDRESS
+    fi
+}
 
 # Evita crescimento ilimitado do log (all.sh imprime continuamente)
 if [ -f "$LOG_FILE" ] && [ "$(stat -c %s "$LOG_FILE" 2>/dev/null || echo 0)" -gt 5242880 ]; then
@@ -58,6 +59,7 @@ send_notification() {
     local message="$2"
     local icon="$3"
 
+    refresh_dbus
     # Só notifica se houver sessão D-Bus do usuário (evita dbus-launch);
     # timeout evita que uma notificação pendurada trave o serviço.
     if [ -n "$DBUS_SESSION_BUS_ADDRESS" ]; then

@@ -21,18 +21,12 @@ Receptor de display sem fio (Miracast / Wi-Fi Display) simples, com **suporte a 
 
 ## Compatibilidade
 
-| Hardware / SO | Player | Observação |
-|---|---|---|
-| **Raspberry Pi 5**, Raspberry Pi OS Bookworm 64-bit | `0` (VLC) | Alvo principal desta versão |
-| Raspberry Pi 1–4, OS Legacy 32-bit | `1`, `2`, `3` (OpenMAX) | Veja [docs/LEGACY-PI1-4.md](docs/LEGACY-PI1-4.md) |
-| Outros Linux | `0` (VLC/GStreamer) | Sem otimizações de hardware |
-
-O Raspberry Pi 5 **não possui OpenMAX/dispmanx** (VideoCore IV) e usa somente o driver KMS (`vc4-kms-v3d`). Por isso, no Pi 5 o instalador força o player `0` e não compila `h264/` nem `player/`. **Não** siga os procedimentos de `userland`/`buildme`/`vc4-fkms-v3d` no Pi 5.
+Esta versão suporta **somente o Raspberry Pi 5** (Raspberry Pi OS Bookworm 64-bit, driver KMS `vc4-kms-v3d`) e usa o **VLC** como player. O `install.sh` recusa outros modelos (use `--force` por sua conta e risco).
 
 ## Requisitos
 
 - Raspberry Pi 5 com Raspberry Pi OS Bookworm (64-bit) e ambiente gráfico.
-- Pacotes: `vlc busybox wpasupplicant libx11-dev build-essential python3` (o `install.sh` oferece instalar).
+- Pacotes (`vlc busybox wpasupplicant libx11-dev build-essential python3 python3-evdev libnotify-bin`): o `install.sh` instala automaticamente; é preciso apenas internet.
 - `wpa_cli` precisa enxergar a interface `p2p-dev-wlan0` (`sudo wpa_cli interface`). Se a lista vier vazia, o Wi-Fi P2P não está acessível ao LazyCast (comum quando o NetworkManager controla o `wpa_supplicant`).
 - **Dual display:** o Wi-Fi interno sustenta **um** grupo P2P por vez. Para dois displays independentes é necessário **um segundo adaptador Wi-Fi USB com suporte a P2P**; a instância *N* usa a *N*-ésima interface `p2p-dev-*`.
 
@@ -45,9 +39,9 @@ cd lazycast2.0
 sudo ./install.sh
 ```
 
-O instalador detecta o modelo do Pi, verifica dependências, pergunta modo (single/dual), nomes dos displays, player e saída de áudio, gera `lazycast-config.conf`, compila `control/` e, opcionalmente, instala o serviço systemd.
+O instalador **instala sozinho todas as dependências** (via `apt`), ajusta permissões, configura o HDMI (dual display no Pi 5) e instala o serviço systemd. Para instalar sem nenhuma pergunta (padrões: single display, VLC): `sudo ./install.sh --yes` (use `--no-service` para não instalar o serviço). Ele detecta o modelo do Pi e pergunta modo (single/dual), nomes dos displays, player e saída de áudio, gera `lazycast-config.conf`, compila `control/` e, opcionalmente, instala o serviço systemd.
 
-Para dual display, verifique o driver de vídeo e as saídas HDMI (não altera nada se já estiver correto):
+No modo dual, o instalador já executa o `setup-hdmi.sh` (garante o driver KMS; reinicie ao final). Para reexecutar manualmente:
 
 ```bash
 sudo ./setup-hdmi.sh
@@ -75,7 +69,7 @@ Arquivo `lazycast-config.conf` (gerado pelo instalador; reexecute `sudo ./instal
 | `DISPLAY_MODE` | `1` single, `2` dual | — |
 | `DISPLAYn_NAME` | Nome anunciado à fonte | `<hostname>-Displayn` |
 | `DISPLAYn_IP`, `DISPLAYn_DHCP_START/END` | Rede P2P da instância (sub-redes diferentes) | `192.168.173.x` / `192.168.174.x` |
-| `DISPLAYn_PLAYER_SELECT` | `0` VLC/GStreamer, `1`/`2`/`3` OpenMAX (não no Pi 5) | `0` no Pi 5 |
+| `DISPLAYn_PLAYER_SELECT` | Sempre `0` (VLC); outros valores são ignorados | `0` |
 | `DISPLAYn_SOUND_OUTPUT` | `0` HDMI, `1` P2 3,5 mm, `2` ALSA | `2` |
 | `DISPLAYn_RTP_PORT` | Porta RTP de vídeo (distinta por display) | `1028` / `1030` |
 | `DISPLAYn_SCREEN` | Índice da tela (0 = HDMI-1) | `0` / `1` |
@@ -105,7 +99,6 @@ O serviço roda como o usuário que executou o `sudo`, exporta o ambiente da ses
 ├── d2.py / d2-multi.py                               receptor RTSP/Miracast
 ├── lazycast-background.sh / lazycast.service         execução em background (systemd)
 ├── control/                                          UIBC (mouse/teclado) em C
-├── h264/ player/                                     players OpenMAX (somente Pi 1–4)
 ├── tests/ test-*.sh                                  testes sem hardware
 ├── docs/                                             guias adicionais
 └── mice.sh newmice.py project.py ...                 Miracast over Infrastructure e utilitários
@@ -144,7 +137,6 @@ Consulte [docs/TESTING-GUIDE.md](docs/TESTING-GUIDE.md) para o roteiro em hardwa
 - [Guia de Dual Display](docs/DUAL-DISPLAY-GUIDE.md)
 - [Guia de testes](docs/TESTING-GUIDE.md)
 - [Miracast over Infrastructure (MICE)](docs/MICE.md)
-- [Raspberry Pi 1–4 / OpenMAX](docs/LEGACY-PI1-4.md)
 - [Dicas](docs/TIPS.md)
 - [Changelog](CHANGELOG.md)
 

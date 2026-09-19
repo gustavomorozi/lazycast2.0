@@ -12,7 +12,7 @@
 # saídas HDMI independentes. As versões anteriores deste script adicionavam
 # 'dtoverlay=vc4-fkms-v3d' (não suportado no Pi 5 — pode deixar o sistema sem vídeo) e
 # opções legadas hdmi_group/hdmi_mode (ignoradas pelo KMS). Agora o script apenas
-# garante o overlay correto (revertendo o que a versão antiga tenha gravado) e mostra
+# garante o overlay correto  e mostra
 # o estado dos conectores HDMI.
 #################################################################################
 
@@ -80,16 +80,11 @@ if [ "$PI5" = true ]; then
         CHANGED=1
     fi
 
-    # hdmi_group/hdmi_mode/hdmi_drive são opções do firmware antigo e são ignoradas pelo KMS.
-    # Removemos apenas as linhas exatas que a versão antiga do script adicionou.
-    for line in "hdmi_drive:0=2" "hdmi_group:0=1" "hdmi_mode:0=16" "hdmi_drive:1=2" "hdmi_group:1=1" "hdmi_mode:1=16"; do
-        if grep -qxF "$line" "$CONFIG_FILE"; then
-            grep -vxF "$line" "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && cat "$CONFIG_FILE.tmp" > "$CONFIG_FILE"
-            rm -f "$CONFIG_FILE.tmp"
-            echo "✓ Linha legada removida: $line"
-            CHANGED=1
-        fi
-    done
+    # hdmi_group/hdmi_mode/hdmi_drive são opções do firmware antigo, ignoradas pelo KMS.
+    # Não removemos nada (podem ser linhas do usuário); apenas avisamos.
+    if grep -qE "^hdmi_(group|mode|drive)" "$CONFIG_FILE"; then
+        echo "⚠ $CONFIG_FILE contém hdmi_group/hdmi_mode/hdmi_drive: ignorados no Pi 5 (KMS). Remova manualmente se desejar."
+    fi
 
     echo ""
     echo "Estado dos conectores HDMI (KMS):"
@@ -119,9 +114,13 @@ echo ""
 
 if [ "$CHANGED" = "1" ]; then
     echo "⚠ Reboot necessário para aplicar as mudanças"
-    read -p "Deseja reiniciar agora? (S/n): " reboot_choice
-    if [[ ! "$reboot_choice" =~ ^[Nn]$ ]]; then
-        reboot
+    if [ -n "$LAZYCAST_NO_REBOOT_PROMPT" ]; then
+        echo "Reinicie o Raspberry Pi para aplicar (sudo reboot)."
+    else
+        read -p "Deseja reiniciar agora? (S/n): " reboot_choice
+        if [[ ! "$reboot_choice" =~ ^[Nn]$ ]]; then
+            reboot
+        fi
     fi
 else
     echo "Nenhuma alteração no config.txt foi necessária (sem reboot)."

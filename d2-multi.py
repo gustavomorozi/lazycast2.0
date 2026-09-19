@@ -29,7 +29,8 @@ import select
 import argparse
 
 ##################### Settings #####################
-player_select = 2
+player_select = 0
+# Raspberry Pi 5: somente VLC/GStreamer (OpenMAX não existe no Pi 5)
 sound_output_select = 2
 disable_1920_1080_60fps = 1
 enable_mouse_keyboard = 0
@@ -38,6 +39,9 @@ display_power_management = 0
 # porta RTP propria, tela propria e nome proprio (antes: 1028 fixo p/ ambas).
 rtp_port = int(os.environ.get('LAZYCAST_RTP_PORT', '1028'))
 display_screen = int(os.environ.get('LAZYCAST_SCREEN', '0'))
+# Argumentos extras do VLC p/ fixar a saída (ex.: '--video-x=1920 --video-y=0'); o antigo
+# --qt-fullscreen-screennumber era ignorado com --intf dummy.
+vlc_extra_args = os.environ.get('LAZYCAST_VLC_ARGS', '')
 display_name = os.environ.get('LAZYCAST_NAME', 'raspberrypi')
 display_instance = "display1"  # Identificador da instância
 
@@ -316,10 +320,7 @@ data = recv_rtsp_message(sock)
 print("---M3--->\n" + data)
 
 msg = 'wfd_client_rtp_ports: RTP/AVP/UDP;unicast ' + str(rtp_port) + ' 0 mode=play\r\n'
-if player_select == 2:
-	msg = msg + 'wfd_audio_codecs: LPCM 00000002 00\r\n'
-else:
-	msg = msg + 'wfd_audio_codecs: AAC 00000001 00\r\n'
+msg = msg + 'wfd_audio_codecs: AAC 00000001 00\r\n'
 
 if disable_1920_1080_60fps == 1:
 	msg = msg + 'wfd_video_formats: 00 00 02 10 0001FEFF 3FFFFFFF 00000FFF 00 0000 0000 00 none none\r\n'
@@ -441,8 +442,6 @@ def killall(control):
         # [dual] escopo por porta RTP: 'pkill vlc' mataria o player da outra instancia
         subprocess.call(['pkill', '-f', 'rtp://0.0.0.0:%d' % rtp_port])
         subprocess.call(['pkill', '-f', 'udp://0.0.0.0:%d' % rtp_port])
-        os.system('pkill player.bin')
-        os.system('pkill h264.bin')
         if display_power_management == 1:
                 os.system('vcgencmd display_power 0')
         if control:
@@ -483,8 +482,8 @@ sessionid=paralist[position].split(';')[0]
 
 
 
-if not runonpi:
-	player_select = 0
+# Pi 5: sempre VLC, mesmo que o .conf antigo peça player 1-3
+player_select = 0
 
 def launchplayer(player_select):
 	killall(False)
@@ -494,21 +493,7 @@ def launchplayer(player_select):
 		if False: # Change False to True if you want to use gstreamer
 			os.system('gst-launch-1.0  -v  playbin   uri=udp://0.0.0.0:' + str(rtp_port) + '/wfd1.0/streamid=0  video-sink=autovideosink audio-sink=alsasink sync=false &')
 		else:
-			os.system('vlc --fullscreen --qt-fullscreen-screennumber=' + str(display_screen) + ' rtp://0.0.0.0:' + str(rtp_port) + '/wfd1.0/streamid=0 --intf dummy --no-ts-trust-pcr --ts-seek-percent --network-caching=150 --no-mouse-events & ')
-	elif player_select == 1:
-		os.system('./player/player.bin '+str(idrsockport)+' '+str(sound_output_select)+' &')
-	elif player_select == 2:
-		sinkip = sock.getsockname()[0]
-		print(sinkip)
-		print('./h264/h264.bin '+str(idrsockport)+' '+str(sound_output_select)+' '+sinkip+' &')
-		os.system('./h264/h264.bin '+str(idrsockport)+' '+str(sound_output_select)+' '+sinkip+' &')
-	elif player_select == 3:
-		omxplayerinfo = subprocess.Popen('omxplayer rtp://0.0.0.0:1028 -i'.split(),stderr=subprocess.PIPE).communicate()
-		if '0 channels' in omxplayerinfo[1]:
-			os.system('omxplayer rtp://0.0.0.0:1028 -n -1 --live &') # For Windows 10 when no sound is playing
-		else:
-			os.system('omxplayer rtp://0.0.0.0:1028 --live &')
-
+			os.system('vlc --fullscreen ' + vlc_extra_args + ' rtp://0.0.0.0:' + str(rtp_port) + '/wfd1.0/streamid=0 --intf dummy --no-ts-trust-pcr --ts-seek-percent --network-caching=150 --no-mouse-events & ')
 launchplayer(player_select)
 
 
@@ -553,16 +538,11 @@ while True:
 				err = e.args[0]
 				if err == errno.EAGAIN or err == errno.EWOULDBLOCK:
 					select.select([sock, idrsock], [], [], IDLE_TICK)
-					if player_select == 2 and subprocess.call(['pgrep', '-x', 'h264.bin'], stdout=subprocess.DEVNULL) != 0:
-						print('Player2 parado, reiniciando...')
-						launchplayer(player_select)						
-						sleep(0.5)
-					else:
-						watchdog = watchdog + IDLE_TICK
-						if watchdog >= WATCHDOG_TIMEOUT:
-							killall(True)
-							sleep(1)
-							break
+					watchdog = watchdog + IDLE_TICK
+					if watchdog >= WATCHDOG_TIMEOUT:
+						killall(True)
+						sleep(1)
+						break
 				else:
 					sys.exit(1)
 			else:

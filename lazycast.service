@@ -18,7 +18,6 @@ LogsDirectory=lazycast
 ExecStart=/home/pi/lazycast2.0/lazycast-background.sh
 Restart=on-failure
 RestartSec=10
-KillMode=control-group
 TimeoutStopSec=15
 
 [Install]

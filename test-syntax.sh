@@ -56,7 +56,7 @@ test_bash_syntax "test-integration.sh"
 
 echo ""
 echo "Testando sintaxe Python..."
-for pyfile in d2.py d2-multi.py d2vlc.py d2win10debug.py newmice.py project.py scan.py tests/mock_source.py; do
+for pyfile in d2.py d2-multi.py newmice.py project.py tests/mock_source.py; do
     if python3 -m py_compile "$pyfile" 2>/dev/null; then
         echo "✓ Sintaxe correta: $pyfile"
         PASSED=$((PASSED + 1))

@@ -46,6 +46,13 @@ check "all-dual.sh possui defaults de porta distintos" bash -c "grep -q 'DISPLAY
 check "install.sh força player 0 no Pi 5" grep -q 'PLAYER_SELECT=0' install.sh
 check "Makefile padrão só compila control" bash -c "grep -q '^all: control$' Makefile"
 
+# Somente Pi 5: sem OpenMAX/legado no repositório
+check "sem diretórios h264/ e player/" bash -c "[ ! -d h264 ] && [ ! -d player ]"
+check "d2.py sem referências a h264.bin/player.bin/omxplayer ativos" bash -c "! grep -v '^[[:space:]]*#' d2.py d2-multi.py | grep -q 'h264.bin\|player.bin\|omxplayer '"
+check "d2.py força player_select = 0" bash -c "grep -q '^player_select = 0' d2.py && grep -q '^player_select = 0' d2-multi.py"
+check "install.sh recusa hardware não-Pi5 sem --force" bash -c "grep -q 'somente o Raspberry Pi 5' install.sh"
+check "install.sh aceita --yes" bash -c "grep -q -- '--yes' install.sh"
+
 # Serviço: ambiente de sessão presente (evita dbus-launch órfão)
 check "lazycast.service define XDG_RUNTIME_DIR e D-Bus" bash -c "grep -q XDG_RUNTIME_DIR lazycast.service && grep -q DBUS_SESSION_BUS_ADDRESS lazycast.service"
 check "background usa timeout no notify-send" grep -q 'timeout 5 notify-send' lazycast-background.sh

@@ -15,11 +15,39 @@ echo "  LazyCast Dual Display Installer"
 echo "=========================================="
 echo ""
 
-# Verificar se está rodando como root
-if [ "$EUID" -ne 0 ]; then 
-    echo "Por favor, execute como root (sudo)"
-    exit 1
+# Opções: -y/--yes aceita todos os padrões (instalação sem perguntas); --no-service não instala o serviço
+ASSUME_YES=0
+FORCE=0
+INSTALL_SERVICE=1
+for arg in "$@"; do
+    case "$arg" in
+        -y|--yes) ASSUME_YES=1 ;;
+        --no-service) INSTALL_SERVICE=0 ;;
+        --force) FORCE=1 ;;
+    esac
+done
+
+# Pergunta com valor padrão; com --yes (ou sem terminal interativo) usa o padrão
+# uso: ask VARIAVEL "Pergunta" [padrão]
+ask() {
+    local __var="$1" __prompt="$2" __default="$3" __reply=""
+    if [ "$ASSUME_YES" = "1" ] || [ ! -t 0 ]; then
+        printf -v "$__var" '%s' "$__default"
+        return
+    fi
+    read -r -p "$__prompt" __reply
+    printf -v "$__var" '%s' "$__reply"
+}
+
+# Executa como root automaticamente (o usuário não precisa lembrar do sudo)
+if [ "$EUID" -ne 0 ]; then
+    echo "Elevando privilégios com sudo..."
+    exec sudo -E bash "$0" "$@"
 fi
+
+# Entra no diretório do projeto e garante permissão de execução (perdida ao clonar/copiar)
+cd "$(dirname "$0")" || exit 1
+chmod +x ./*.sh ./*.py 2>/dev/null
 
 # Dependências (Raspberry Pi OS Bookworm / Pi 5). Sem elas o make do control falha (libx11-dev)
 # ou o receptor não sobe (busybox = udhcpd, vlc = player, wpa_cli = P2P).
@@ -30,12 +58,16 @@ command -v wpa_cli >/dev/null 2>&1 || missing_pkgs+=(wpasupplicant)
 command -v busybox >/dev/null 2>&1 || missing_pkgs+=(busybox)
 command -v vlc >/dev/null 2>&1 || missing_pkgs+=(vlc)
 command -v python3 >/dev/null 2>&1 || missing_pkgs+=(python3)
+python3 -c "import evdev" >/dev/null 2>&1 || missing_pkgs+=(python3-evdev)
+command -v notify-send >/dev/null 2>&1 || missing_pkgs+=(libnotify-bin)
 dpkg -s libx11-dev >/dev/null 2>&1 || missing_pkgs+=(libx11-dev)
 if [ ${#missing_pkgs[@]} -gt 0 ]; then
     echo "Pacotes ausentes: ${missing_pkgs[*]}"
-    read -p "Instalar agora com apt? (S/n): " install_deps
-    if [[ ! "$install_deps" =~ ^[Nn]$ ]]; then
-        apt-get update && apt-get install -y "${missing_pkgs[@]}" || echo "⚠ Falha ao instalar dependências; continue manualmente."
+    echo "Instalando automaticamente..."
+    export DEBIAN_FRONTEND=noninteractive
+    if ! { apt-get update && apt-get install -y "${missing_pkgs[@]}"; }; then
+        echo "✗ Falha ao instalar dependências (${missing_pkgs[*]}). Verifique a conexão com a internet e tente novamente."
+        exit 1
     fi
 fi
 
@@ -50,8 +82,12 @@ if [[ "$CPU_INFO" == *"BCM2712"* ]] || [[ "$PI_MODEL" == *"Raspberry Pi 5"* ]]; 
     echo "✓ Raspberry Pi 5 detectado - Suporte dual HDMI disponível"
     PI5_DETECTED=true
 else
-    echo "⚠ Raspberry Pi não-Pi5 detectado - Suporte dual HDMI pode ser limitado"
     PI5_DETECTED=false
+    if [ "$FORCE" != "1" ]; then
+        echo "✗ Esta versão suporta somente o Raspberry Pi 5. Use --force para instalar mesmo assim."
+        exit 1
+    fi
+    echo "⚠ Hardware não-Pi5 (--force): sem suporte."
 fi
 
 echo ""
@@ -65,10 +101,10 @@ echo "2) Dual Display (Dois displays independentes - HDMI-1 e HDMI-2)"
 echo ""
 
 if [ "$PI5_DETECTED" = true ]; then
-    read -p "Escolha (1 ou 2): " display_choice
+    ask display_choice "Escolha (1 ou 2): " "1"
 else
     echo "Nota: Para dual display, recomenda-se Raspberry Pi 5"
-    read -p "Escolha (1 ou 2): " display_choice
+    ask display_choice "Escolha (1 ou 2): " "1"
 fi
 
 case $display_choice in
@@ -96,47 +132,23 @@ HOSTNAME=$(uname -n)
 echo "Hostname atual: $HOSTNAME"
 
 if [ "$DISPLAY_MODE" = "1" ]; then
-    read -p "Nome do display [$HOSTNAME]: " display1_name
+    ask display1_name "Nome do display [$HOSTNAME]: " ""
     DISPLAY1_NAME=${display1_name:-$HOSTNAME}
     DISPLAY2_NAME=""
 else
-    read -p "Nome do Display 1 [${HOSTNAME}-Display1]: " display1_name
+    ask display1_name "Nome do Display 1 [${HOSTNAME}-Display1]: " ""
     DISPLAY1_NAME=${display1_name:-${HOSTNAME}-Display1}
     
-    read -p "Nome do Display 2 [${HOSTNAME}-Display2]: " display2_name
+    ask display2_name "Nome do Display 2 [${HOSTNAME}-Display2]: " ""
     DISPLAY2_NAME=${display2_name:-${HOSTNAME}-Display2}
 fi
 
 
 
 echo ""
-echo "=========================================="
-echo "  Configuração de Player"
-echo "=========================================="
-echo ""
-echo "Selecione o player:"
-echo "1) player1 (menor latência, OpenMAX — Pi 1–4 32-bit)"
-echo "2) player2 (imagens estáticas e som, OpenMAX — Pi 1–4 32-bit)"
-echo "3) omxplayer (para Android, OpenMAX legado)"
-echo "0) VLC/GStreamer (recomendado no Raspberry Pi 5 / 64-bit)"
-echo ""
+# Raspberry Pi 5: somente VLC (OpenMAX/ilclient não existem neste hardware)
+PLAYER_SELECT=0
 
-if [ "$PI5_DETECTED" = true ]; then
-    echo "Raspberry Pi 5: OpenMAX/ilclient não são suportados neste hardware."
-    echo "Use a opção 0 (VLC/GStreamer). As opções 1–3 falham na compilação ou em runtime."
-    echo ""
-    read -p "Escolha (0-3) [0]: " player_choice
-    PLAYER_SELECT=${player_choice:-0}
-    if [ "$PLAYER_SELECT" != "0" ]; then
-        echo "⚠ Player $PLAYER_SELECT não é suportado no Raspberry Pi 5. Usando 0 (VLC/GStreamer)."
-        PLAYER_SELECT=0
-    fi
-else
-    read -p "Escolha (0-3) [2]: " player_choice
-    PLAYER_SELECT=${player_choice:-2}
-fi
-
-echo ""
 echo "=========================================="
 echo "  Configuração de Áudio"
 echo "=========================================="
@@ -147,7 +159,7 @@ echo "1) 3.5mm audio jack"
 echo "2) ALSA"
 echo ""
 
-read -p "Escolha (0-2) [2]: " audio_choice
+ask audio_choice "Escolha (0-2) [2]: " ""
 SOUND_OUTPUT=${audio_choice:-2}
 
 echo ""
@@ -165,7 +177,7 @@ if [ "$DISPLAY_MODE" = "2" ]; then
 fi
 
 echo ""
-read -p "Confirmar configuração? (S/n): " confirm
+ask confirm "Confirmar configuração? (S/n): " "S"
 if [[ "$confirm" =~ ^[Nn]$ ]]; then
     echo "Instalação cancelada."
     exit 0
@@ -209,10 +221,7 @@ DISPLAY2_RTP_PORT=1030
 DISPLAY2_SCREEN=1
 
 # Configurações do Player
-# 0: non-RPi systems (using vlc or gstreamer)
-# 1: player1 has lower latency
-# 2: player2 handles still images and sound better
-# 3: omxplayer (para Android)
+# 0: VLC/GStreamer (único player suportado no Raspberry Pi 5)
 SOUND_OUTPUT_SELECT=$SOUND_OUTPUT
 # 0: HDMI sound output
 # 1: 3.5mm audio jack output
@@ -242,16 +251,7 @@ echo "Compilando o projeto..."
 make -C control/.
 CONTROL_OK=$?
 
-OMX_OK=0
-if [ "$PLAYER_SELECT" = "1" ] || [ "$PLAYER_SELECT" = "2" ] || [ "$PLAYER_SELECT" = "3" ]; then
-    echo "Compilando backends OpenMAX (h264/player)..."
-    make -C h264/. && make -C player/.
-    OMX_OK=$?
-else
-    echo "Player VLC/GStreamer selecionado — pulando compilação OpenMAX (h264/player)."
-fi
-
-if [ "$CONTROL_OK" -eq 0 ] && [ "$OMX_OK" -eq 0 ]; then
+if [ "$CONTROL_OK" -eq 0 ]; then
     echo "✓ Compilação concluída com sucesso"
 else
     echo "✗ Erro na compilação"
@@ -272,6 +272,11 @@ chmod +x lazycast-background.sh lazycast-status.sh
 chmod +x clear_pairing.sh player_health_check.sh check_dependencies.sh
 chmod +x d2.py d2-multi.py project.py
 
+# Pi 5 + dual display: garante driver KMS/HDMI sem perguntar (reboot fica a cargo do usuário)
+if [ "$PI5_DETECTED" = true ] && [ "$DISPLAY_MODE" = "2" ]; then
+    LAZYCAST_NO_REBOOT_PROMPT=1 ./setup-hdmi.sh || echo "⚠ setup-hdmi.sh falhou; verifique manualmente."
+fi
+
 echo ""
 echo "=========================================="
 echo "  Instalação Concluída!"
@@ -285,14 +290,13 @@ echo "Para alterar a configuração posteriormente:"
 echo "  - Edite o arquivo lazycast-config.conf"
 echo "  - Execute ./install.sh novamente"
 echo ""
-read -p "Deseja instalar o serviço de inicialização automática no boot? (S/n): " install_service
-if [[ ! "$install_service" =~ ^[Nn]$ ]]; then
+if [ "$INSTALL_SERVICE" = "1" ]; then
     echo ""
     echo "Instalando serviço systemd..."
     ./install-service.sh
 else
     echo ""
-    echo "Serviço não instalado. Você pode instalar depois com:"
+    echo "Serviço não instalado (--no-service). Você pode instalar depois com:"
     echo "  sudo ./install-service.sh"
 fi
 echo ""

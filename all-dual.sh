@@ -83,18 +83,18 @@ start_display_instance() {
     local rtp_port=$8
     local screen=$9
     local dev_index=${10}
+    local p2p_dev_pin=${11}
+    local vlc_args=${12}
 
     echo "Iniciando instância para $display_name..." >&2
 
     # Criar diretório temporário para esta instância
     local instance_dir="$BASE_DIR/lazycast_instance_$interface_suffix"
-    mkdir -p "$instance_dir/player" "$instance_dir/h264" "$instance_dir/control"
+    mkdir -p "$instance_dir/control"
     cd "$instance_dir" || return 1
 
-    # Copiar arquivos necessários (d2.py espera os binários em ./player, ./h264 e ./control)
+    # Copiar arquivos necessários (d2.py espera os binários em ./control)
     cp "$BASE_DIR/d2.py" .
-    cp "$BASE_DIR/player/player.bin" player/ 2>/dev/null || true
-    cp "$BASE_DIR/h264/h264.bin" h264/ 2>/dev/null || true
     cp "$BASE_DIR/control/control.bin" control/ 2>/dev/null || true
     cp "$BASE_DIR/control/controlhidc.bin" control/ 2>/dev/null || true
 
@@ -111,7 +111,12 @@ start_display_instance() {
         while :
         do
             # [RPi5/dual] N-ésima interface p2p-dev para a N-ésima instância
-            p2pdevinterface=$(list_p2p_devs | sed -n "${dev_index}p")
+            # DISPLAYn_P2P_DEV fixa o adaptador (ordem de enumeração não é estável); senão usa o N-ésimo
+            if [ -n "$p2p_dev_pin" ]; then
+                p2pdevinterface=$(list_p2p_devs | grep -Fx "$p2p_dev_pin")
+            else
+                p2pdevinterface=$(list_p2p_devs | sed -n "${dev_index}p")
+            fi
             wlaninterface=${p2pdevinterface#p2p-dev-}
 
             if [ -z "$p2pdevinterface" ]; then
@@ -200,6 +205,7 @@ EOF
                 env DISPLAY="${DISPLAY:-:0}" \
                     LAZYCAST_RTP_PORT="$rtp_port" \
                     LAZYCAST_SCREEN="$screen" \
+                    LAZYCAST_VLC_ARGS="$vlc_args" \
                     LAZYCAST_NAME="$display_name" \
                     ./d2.py "$dhcp_start"
 
@@ -235,14 +241,14 @@ cleanup() {
 
 # Iniciar Display 1
 echo "Iniciando Display 1..."
-display1_pid=$(start_display_instance "$DISPLAY1_NAME" "$DISPLAY1_IP" "$DISPLAY1_DHCP_START" "$DISPLAY1_DHCP_END" "$DISPLAY1_SOUND_OUTPUT" "$DISPLAY1_PLAYER_SELECT" "display1" "$DISPLAY1_RTP_PORT" "$DISPLAY1_SCREEN" 1)
+display1_pid=$(start_display_instance "$DISPLAY1_NAME" "$DISPLAY1_IP" "$DISPLAY1_DHCP_START" "$DISPLAY1_DHCP_END" "$DISPLAY1_SOUND_OUTPUT" "$DISPLAY1_PLAYER_SELECT" "display1" "$DISPLAY1_RTP_PORT" "$DISPLAY1_SCREEN" 1 "$DISPLAY1_P2P_DEV" "$DISPLAY1_VLC_ARGS")
 
 # Aguardar um pouco antes de iniciar o segundo display
 sleep 3
 
 # Iniciar Display 2
 echo "Iniciando Display 2..."
-display2_pid=$(start_display_instance "$DISPLAY2_NAME" "$DISPLAY2_IP" "$DISPLAY2_DHCP_START" "$DISPLAY2_DHCP_END" "$DISPLAY2_SOUND_OUTPUT" "$DISPLAY2_PLAYER_SELECT" "display2" "$DISPLAY2_RTP_PORT" "$DISPLAY2_SCREEN" 2)
+display2_pid=$(start_display_instance "$DISPLAY2_NAME" "$DISPLAY2_IP" "$DISPLAY2_DHCP_START" "$DISPLAY2_DHCP_END" "$DISPLAY2_SOUND_OUTPUT" "$DISPLAY2_PLAYER_SELECT" "display2" "$DISPLAY2_RTP_PORT" "$DISPLAY2_SCREEN" 2 "$DISPLAY2_P2P_DEV" "$DISPLAY2_VLC_ARGS")
 
 echo ""
 echo "=========================================="
@@ -263,11 +269,11 @@ while true; do
     # Verificar se os processos ainda estão rodando
     if ! kill -0 $display1_pid 2>/dev/null; then
         echo "Display 1 parou inesperadamente"
-        display1_pid=$(start_display_instance "$DISPLAY1_NAME" "$DISPLAY1_IP" "$DISPLAY1_DHCP_START" "$DISPLAY1_DHCP_END" "$DISPLAY1_SOUND_OUTPUT" "$DISPLAY1_PLAYER_SELECT" "display1" "$DISPLAY1_RTP_PORT" "$DISPLAY1_SCREEN" 1)
+        display1_pid=$(start_display_instance "$DISPLAY1_NAME" "$DISPLAY1_IP" "$DISPLAY1_DHCP_START" "$DISPLAY1_DHCP_END" "$DISPLAY1_SOUND_OUTPUT" "$DISPLAY1_PLAYER_SELECT" "display1" "$DISPLAY1_RTP_PORT" "$DISPLAY1_SCREEN" 1 "$DISPLAY1_P2P_DEV" "$DISPLAY1_VLC_ARGS")
     fi
 
     if ! kill -0 $display2_pid 2>/dev/null; then
         echo "Display 2 parou inesperadamente"
-        display2_pid=$(start_display_instance "$DISPLAY2_NAME" "$DISPLAY2_IP" "$DISPLAY2_DHCP_START" "$DISPLAY2_DHCP_END" "$DISPLAY2_SOUND_OUTPUT" "$DISPLAY2_PLAYER_SELECT" "display2" "$DISPLAY2_RTP_PORT" "$DISPLAY2_SCREEN" 2)
+        display2_pid=$(start_display_instance "$DISPLAY2_NAME" "$DISPLAY2_IP" "$DISPLAY2_DHCP_START" "$DISPLAY2_DHCP_END" "$DISPLAY2_SOUND_OUTPUT" "$DISPLAY2_PLAYER_SELECT" "display2" "$DISPLAY2_RTP_PORT" "$DISPLAY2_SCREEN" 2 "$DISPLAY2_P2P_DEV" "$DISPLAY2_VLC_ARGS")
     fi
 done
