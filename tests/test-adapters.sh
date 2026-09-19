@@ -85,6 +85,12 @@ seen=""; for _i in $(seq 1 40); do seen="$seen $(random_animal_name)"; done
 distinct=$(echo $seen | tr ' ' '\n' | sort -u | wc -l)
 [ "$distinct" -gt 5 ] && ok "o sorteio varia ($distinct nomes distintos em 40)" || bad "variedade do sorteio" "$distinct"
 
+# --- nome da rede (postfix do SSID Wi-Fi Direct)
+eq "postfix simples" "$(network_postfix LazyCast-Gecko)" "-LazyCast-Gecko"
+eq "espaços viram hífen e símbolos saem" "$(network_postfix 'Sala 1!')" "-Sala-1"
+eq "limita a 22 caracteres (SSID <= 32 bytes)" "$(network_postfix 'ABCDEFGHIJKLMNOPQRSTUVWXYZ')" "-ABCDEFGHIJKLMNOPQRSTUV"
+pf=$(network_postfix ABCDEFGHIJKLMNOPQRSTUVWXYZ); [ $(( 9 + ${#pf} )) -le 32 ] && ok "DIRECT-xy + postfix cabe em 32 bytes" || bad "tamanho do SSID" "${#pf}"
+
 echo ""
 echo "Resultado: $PASSED passou, $FAILED falhou"
 [ "$FAILED" -eq 0 ]

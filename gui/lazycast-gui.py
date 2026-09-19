@@ -30,7 +30,7 @@ CSS = b"""
 """
 
 STATE_TEXT = {
-    'ready':     ('dot-ok',   'Pronto para conectar', 'Procure o nome abaixo na sua fonte (Windows: Win + K; celular: Smart View).'),
+    'ready':     ('dot-ok',   'Pronto para conectar', 'Procure a rede abaixo na sua fonte (Windows: Win + K; celular: Smart View).'),
     'connected': ('dot-ok',   'Aparelho conectado',   'A imagem aparece nas telas abaixo. Use «Ver telas» para acompanhar.'),
     'starting':  ('dot-warn', 'Iniciando…',           'Criando a rede Wi-Fi Direct. Isso leva cerca de 30 segundos.'),
     'stopped':   ('dot-off',  'Parado',               'O LazyCast está desligado. Toque em «Iniciar».'),
@@ -87,7 +87,7 @@ class HomePage(Gtk.Box):
 
         # nome a procurar
         row = Gtk.Box(spacing=10)
-        row.pack_start(label('Nome para procurar:', 'muted', wrap=False), False, False, 0)
+        row.pack_start(label('Nome da rede:', 'muted', wrap=False), False, False, 0)
         self.name_chip = label('raspberry', 'chip', wrap=False)
         row.pack_start(self.name_chip, False, False, 0)
         self.auth_lbl = label('', 'muted', wrap=False)
@@ -282,8 +282,8 @@ class SettingsPage(Gtk.ScrolledWindow):
         # Identificação
         self.name = Gtk.Entry()
         self.name.connect('changed', self.mark_dirty)
-        outer.pack_start(self.section('Nome do display',
-                                      'É o nome que aparece no Windows e no celular. O Wi-Fi do Pi mostra um único nome, mesmo com duas telas.', self.name), False, False, 0)
+        outer.pack_start(self.section('Nome da rede',
+                                      'É o nome que aparece no Windows e no celular (e vira parte do nome do Wi-Fi Direct). A rede é uma só, mesmo com duas telas.', self.name), False, False, 0)
 
         # Telas
         self.r1 = Gtk.RadioButton.new_with_label_from_widget(None, 'Uma tela')

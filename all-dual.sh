@@ -154,6 +154,7 @@ start_display_instance() {
                 # Configurar dispositivo P2P com nome específico
                 sudo wpa_cli -i"$p2pdevinterface" p2p_find type=progressive
                 sudo wpa_cli -i"$p2pdevinterface" set device_name "$display_name"
+                set_p2p_network_name "$p2pdevinterface" "$display_name"
                 sudo wpa_cli -i"$p2pdevinterface" set device_type 7-0050F204-1
                 set_wps_config_methods "$p2pdevinterface"
                 sudo wpa_cli -i"$p2pdevinterface" set p2p_go_ht40 1

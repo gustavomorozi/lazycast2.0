@@ -149,13 +149,13 @@ fi
 DEFAULT_NAME=${DEFAULT_NAME:-$(random_animal_name)}
 
 if [ "$DISPLAY_MODE" = "1" ]; then
-    ask display1_name "Nome do display [$DEFAULT_NAME]: " ""
+    ask display1_name "Nome da rede [$DEFAULT_NAME]: " ""
     DISPLAY1_NAME=${display1_name:-$DEFAULT_NAME}
     DISPLAY2_NAME=""
 else
     # Com um Wi-Fi só, o Windows/Android listam UM dispositivo (um nome); a 2ª fonte entra no mesmo
     # nome. Por isso o nome padrão é neutro, sem "-Display1" (que sugeria existir só a Tela 1).
-    ask display1_name "Nome do display (aparece no Windows/celular) [$DEFAULT_NAME]: " ""
+    ask display1_name "Nome da rede (aparece no Windows/celular) [$DEFAULT_NAME]: " ""
     DISPLAY1_NAME=${display1_name:-$DEFAULT_NAME}
     
     ask display2_name "Nome do Display 2 [${HOSTNAME}-Display2]: " ""
