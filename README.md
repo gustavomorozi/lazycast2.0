@@ -49,6 +49,16 @@ No modo dual, o instalador já executa o `setup-hdmi.sh` (garante o driver KMS; 
 sudo ./setup-hdmi.sh
 ```
 
+## Painel gráfico
+
+O instalador cria o atalho **LazyCast** no menu de aplicativos do Raspberry Pi (ou rode `python3 gui/lazycast-gui.py`). O painel tem três abas:
+
+- **Início:** estado em uma frase (pronto, conectado, parado), o nome a procurar na fonte, uma caixa por tela e os botões **Ver telas**, Iniciar/Parar e Reiniciar. **Ver telas** abre uma prévia do vídeo recebido em cada tela, mesmo sem monitor ligado.
+- **Configurações:** nome do display, uma ou duas telas, exigir PIN (ou conexão sem PIN), qualidade (60 ou 50 quadros), mouse/teclado e iniciar com o Raspberry. **Salvar e aplicar** grava o `lazycast-config.conf` e reinicia o serviço.
+- **Diagnóstico:** lista de verificações (serviço, Wi-Fi Direct, rede criada, anúncio Miracast, DHCP, receptor), o log e **Copiar relatório** para pedir ajuda.
+
+O painel usa `sudo -n` para controlar o serviço (o usuário padrão do Raspberry Pi OS já tem sudo sem senha).
+
 ## Uso
 
 Execução manual (sem serviço):
