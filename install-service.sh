@@ -38,6 +38,14 @@ sed -i "s|^User=.*|User=$LAZYCAST_USER|" /etc/systemd/system/lazycast.service
 echo "Diretório: $LAZYCAST_DIR"
 echo "Usuário: $LAZYCAST_USER"
 
+# O serviço roda como usuário comum; o clone/install como root deixa arquivos sem permissão de escrita
+if id "$LAZYCAST_USER" >/dev/null 2>&1; then
+    chown -R "$LAZYCAST_USER":"$(id -gn "$LAZYCAST_USER")" "$LAZYCAST_DIR"
+    touch "$LAZYCAST_DIR/lazycast-background.log"
+    chown "$LAZYCAST_USER":"$(id -gn "$LAZYCAST_USER")" "$LAZYCAST_DIR/lazycast-background.log"
+    chmod 664 "$LAZYCAST_DIR/lazycast-background.log"
+fi
+
 # Tornar scripts executáveis
 echo "Tornando scripts executáveis..."
 chmod +x "$LAZYCAST_DIR/lazycast-background.sh"
@@ -80,5 +88,6 @@ echo "  sudo systemctl disable lazycast - Desabilitar início automático"
 echo ""
 echo "Logs:"
 echo "  journalctl -u lazycast -f       - Ver logs do serviço"
-echo "  cat $LAZYCAST_DIR/lazycast-background.log - Ver logs específicos"
+echo "  cat $LAZYCAST_DIR/lazycast-background.log - Ver logs no diretório do projeto"
+echo "  cat /var/log/lazycast/lazycast-background.log - Ver logs do serviço"
 echo ""

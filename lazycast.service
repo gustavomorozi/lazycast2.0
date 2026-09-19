@@ -8,6 +8,7 @@ User=pi
 WorkingDirectory=/home/pi/lazycast2.0
 Environment=LD_LIBRARY_PATH=/opt/vc/lib
 Environment=DISPLAY=:0
+LogsDirectory=lazycast
 ExecStart=/home/pi/lazycast2.0/lazycast-background.sh
 Restart=on-failure
 RestartSec=10

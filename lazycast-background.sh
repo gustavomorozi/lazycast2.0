@@ -10,6 +10,18 @@
 LAZYCAST_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$LAZYCAST_DIR" || exit 1
 
+if [ -d /var/log/lazycast ] && [ -w /var/log/lazycast ]; then
+    LOG_FILE="/var/log/lazycast/lazycast-background.log"
+elif [ -w "$LAZYCAST_DIR" ] && { [ ! -e "$LAZYCAST_DIR/lazycast-background.log" ] || [ -w "$LAZYCAST_DIR/lazycast-background.log" ]; }; then
+    LOG_FILE="$LAZYCAST_DIR/lazycast-background.log"
+else
+    LOG_FILE="/tmp/lazycast-background.log"
+fi
+
+append_log() {
+    echo "$@" >> "$LOG_FILE" 2>/dev/null || echo "$@" >> /tmp/lazycast-background.log
+}
+
 # Carregar configurações
 if [ -f lazycast-config.conf ]; then
     source lazycast-config.conf
@@ -32,7 +44,7 @@ send_notification() {
     fi
     
     # Log da notificação
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] NOTIFICAÇÃO: $title - $message" >> lazycast-background.log
+    append_log "[$(date '+%Y-%m-%d %H:%M:%S')] NOTIFICAÇÃO: $title - $message"
 }
 
 # Função para iniciar LazyCast
@@ -44,11 +56,11 @@ start_lazycast() {
     if [ "$mode" = "2" ]; then
         # Modo Dual Display
         send_notification "LazyCast Dual Display" "Iniciando dois displays independentes..." "video-display"
-        ./all-dual.sh >> lazycast-background.log 2>&1
+        ./all-dual.sh >> "$LOG_FILE" 2>&1
     else
         # Modo Single Display
         send_notification "LazyCast" "Iniciando receptor wireless..." "display"
-        ./all.sh >> lazycast-background.log 2>&1
+        ./all.sh >> "$LOG_FILE" 2>&1
     fi
 }
 
@@ -72,7 +84,7 @@ monitor_status() {
                     fi
                 fi
             else
-                if [ -f "lazycast-background.log" ] && grep -q "The display is ready" lazycast-background.log; then
+                if [ -f "$LOG_FILE" ] && grep -q "The display is ready" "$LOG_FILE"; then
                     send_notification "LazyCast" "Display pronto e aguardando conexão" "display"
                 fi
             fi

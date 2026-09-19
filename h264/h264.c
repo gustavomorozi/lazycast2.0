@@ -174,13 +174,15 @@ int sendtodecoder(COMPONENT_T *video_decode, COMPONENT_T *video_scheduler, COMPO
 			return -6;
 	}
 
+	return 0;
 }
 
 
 int idrsockport = -1;
 char* sinkip = "192.168.173.1";
-static void* addnullpacket(rtppacket* beg)
+static void* addnullpacket(void *arg)
 {
+	rtppacket *beg = arg;
 	struct sockaddr_in addr1, addr2;
 	struct sockaddr_in sourceaddr;
 	socklen_t addrlen = sizeof(sourceaddr);
@@ -481,9 +483,6 @@ static int video_decode_test(rtppacket* beg)
 		int oldcc = 0;
 		int peserror = 1;
 		int first = 1;
-		int peslen = -100, actuallen = 0;
-		unsigned char* oldlen = NULL;
-
 		rtppacket*scan = beg;
 		while (1)
 		{
@@ -506,7 +505,6 @@ static int video_decode_test(rtppacket* beg)
 				unsigned char sync = buffer[0];
 				if (sync == 0x47)
 				{
-					int startindicator = buffer[1] & 0x40;
 					short pid = ((0x1F & buffer[1]) << 8) + buffer[2];
 
 					if (pid == 0x1011)
@@ -618,6 +616,12 @@ static int video_decode_test(rtppacket* beg)
 	return status;
 }
 
+static void *video_decode_thread(void *arg)
+{
+	video_decode_test((rtppacket *)arg);
+	return NULL;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc > 1)
@@ -647,7 +651,7 @@ int main(int argc, char **argv)
 
 	if (pthread_create(&npthread, NULL, addnullpacket, beg) != 0)
 		exit(1);
-	if (pthread_create(&dthread, NULL, video_decode_test, beg) != 0)
+	if (pthread_create(&dthread, NULL, video_decode_thread, beg) != 0)
 		exit(1);
 
 	if (pthread_join(npthread, NULL) != 0)
