@@ -53,27 +53,35 @@ parser.add_argument('arg1', nargs='?', default='192.168.173.80')
 args = parser.parse_args()
 sourceip = vars(args)['arg1']
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server_address = (sourceip, 7236)
-sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-sock.settimeout(30)  # Timeout de 30 segundos para conexão
+def log(msg):
+	print('[' + time.strftime('%H:%M:%S') + '] ' + str(msg), flush=True)
 
+# [fix] Um socket NOVO por tentativa. Reusar o socket após um connect() falho fazia a 3ª tentativa
+# "conectar" sem conexão real (recv: No route to host) e o ciclo levava ~13 s com uma só tentativa
+# de verdade; o Windows desistia da sessão (BrokenPipe no M3) antes de o receptor chegar. Agora
+# tenta a cada 0,5 s (timeout curto) por até ~45 s, então conecta assim que a fonte fica online.
+CONNECT_TRIES = 30
 connectcounter = 0
-while True: 
+while True:
+	sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	server_address = (sourceip, 7236)
+	sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+	sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+	sock.settimeout(1.5)
 	try:
 		sock.connect(server_address)
 	except socket.error as e:
+		sock.close()
 		connectcounter = connectcounter + 1
-		if connectcounter < 3:
-			print('Retry ' + str(connectcounter) + '/3')
-			sleep(2)
-			continue
-		else:
-			sock.close()
+		if connectcounter >= CONNECT_TRIES:
+			log('Sem fonte em ' + sourceip + '; reiniciando o receptor')
 			sys.exit(1)
+		sleep(0.5)
+		continue
 	else:
 		break
+sock.settimeout(30)  # Timeout de 30 segundos para a negociação RTSP
+log('Conectado à fonte ' + sourceip)
 
 
 rtsp_buffer = b''
@@ -482,7 +490,7 @@ sock.sendall(m7req.encode())
 data = recv_rtsp_message(sock)
 print("-------->\n" + data)
 
-print("---- Negotiation successful ----")
+log('---- Negotiation successful ----')
 
 sock.settimeout(None)
 fcntl.fcntl(sock, fcntl.F_SETFL, os.O_NONBLOCK)
