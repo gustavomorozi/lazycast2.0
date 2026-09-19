@@ -54,16 +54,65 @@ pause_networkmanager() {
     trap 'resume_networkmanager' EXIT
 }
 
-# PIN WPS do grupo P2P. Sem um PIN registrado (wps_pin), o Windows/Android pedem PIN e não
-# há nenhum aceito, então a conexão trava nessa tela (o commit que "removeu o PIN" quebrou isso).
-# O PIN vem de LAZYCAST_PIN no lazycast-config.conf (gerado aleatoriamente pelo install.sh).
-register_wps_pin() {
-    local group_if="$1" pin="${2:-$LAZYCAST_PIN}"
-    if [ -z "$pin" ]; then
-        echo "AVISO: LAZYCAST_PIN vazio no lazycast-config.conf; execute ./install.sh para gerar um PIN."
-        return 1
+# Autenticação de quem conecta (LAZYCAST_AUTH no lazycast-config.conf):
+#   pbc (padrão) - SEM PIN: o P2P device anuncia só "botão" e o botão WPS do grupo é mantido
+#                  ativo (renovado a cada 90 s). Testado no Pi 5 com Android e Windows.
+#                  Atenção: qualquer aparelho ao alcance do Wi-Fi pode espelhar na tela.
+#   pin          - a fonte pede o PIN de LAZYCAST_PIN (wps_pin any).
+# (O commit que "removeu o PIN" deixou o Windows/Android pedindo PIN sem nenhum registrado.)
+
+# Método anunciado nas respostas de descoberta; chamar ANTES do p2p_group_add.
+set_wps_config_methods() {
+    local dev="$1"
+    if [ "${LAZYCAST_AUTH:-pbc}" = "pin" ]; then
+        sudo wpa_cli -i "$dev" set config_methods "keypad" >/dev/null
+    else
+        sudo wpa_cli -i "$dev" set config_methods "virtual_push_button physical_push_button" >/dev/null
     fi
-    sudo wpa_cli -i "$group_if" wps_pin any "$pin" >/dev/null
+}
+
+# Enquanto a interface do grupo existir, renova o botão WPS (a janela dura ~120 s).
+keep_pbc_active() {
+    local g="$1"
+    while [ -d "/sys/class/net/$g" ]; do
+        sudo wpa_cli -i "$g" wps_pbc >/dev/null 2>&1
+        sleep 90
+    done
+}
+
+# Chamar depois que o grupo existe.
+register_wps_auth() {
+    local group_if="$1"
+    if [ "${LAZYCAST_AUTH:-pbc}" = "pin" ]; then
+        if [ -z "$LAZYCAST_PIN" ]; then
+            echo "AVISO: LAZYCAST_AUTH=pin mas LAZYCAST_PIN vazio; execute ./install.sh para gerar um PIN."
+            return 1
+        fi
+        sudo wpa_cli -i "$group_if" wps_pin any "$LAZYCAST_PIN" >/dev/null
+    else
+        keep_pbc_active "$group_if" >/dev/null 2>&1 &
+    fi
+}
+
+# O pool DHCP tem UM endereço (start=end). Sem isto, o 1º aparelho (ex.: celular) prende o IP pelo
+# tempo do aluguel e o 2º (ex.: Windows) não recebe DHCP e falha ao conectar. Observa as estações
+# Wi-Fi do grupo (a cada 1 s) e, quando a última desconecta, zera os leases e reinicia o udhcpd (libera na hora).
+# uso: watch_dhcp_release <interface do grupo> <conf do udhcpd> <arquivo de leases>
+watch_dhcp_release() {
+    local g="$1" conf="$2" lease="$3" seen=0 n
+    while [ -d "/sys/class/net/$g" ]; do
+        n=$(iw dev "$g" station dump 2>/dev/null | grep -c '^Station')
+        if [ "$n" -gt 0 ]; then
+            seen=1
+        elif [ "$seen" = "1" ]; then
+            seen=0
+            echo "Aparelho desconectou: liberando o IP (DHCP)"
+            sudo pkill -f "[u]dhcpd $conf" 2>/dev/null
+            rm -f "$lease"
+            sudo busybox udhcpd "$conf"
+        fi
+        sleep 1
+    done
 }
 
 # Gera um PIN WPS de 8 dígitos com dígito verificador válido (7 aleatórios + checksum)
