@@ -54,15 +54,29 @@ iface_mac() { case "$1" in wlan0) echo d8:3a:dd:be:91:ec ;; *) echo 00:11:22:33:
 iface_bus() { case "$1" in wlan0) echo interno ;; *) echo usb ;; esac; }
 eq "USB com nome wlx… sem p2p-dev usa a própria interface de controle" "$(list_p2p_devs | tr '\n' ' ')" "p2p-dev-wlan0 wlx001122334455 "
 
-# --- posicionamento do VLC por monitor (xrandr simulado; ordem esquerda -> direita)
-xrandr() { printf 'Screen 0: minimum 320 x 200
-XWAYLAND1 connected 1280x720+1920+0 (normal left inverted) 0mm x 0mm
-XWAYLAND0 connected primary 1920x1080+0+0 (normal left inverted) 0mm x 0mm
-XWAYLAND2 disconnected (normal left inverted)
-'; }
-eq "VLC monitor 0 = mais à esquerda" "$(vlc_args_for_screen 0)" "--no-fullscreen --no-video-deco --video-x=0 --video-y=0 --width=1920 --height=1080"
-eq "VLC monitor 1 = à direita" "$(vlc_args_for_screen 1)" "--no-fullscreen --no-video-deco --video-x=1920 --video-y=0 --width=1280 --height=720"
-eq "VLC monitor inexistente = vazio" "$(vlc_args_for_screen 2)" ""
+# --- layout das janelas (labwc): wlr-randr/pgrep/kill simulados e rc.xml em diretório temporário
+export XDG_CONFIG_HOME=$(mktemp -d)
+command() { [ "$1" = "-v" ] && [ "$2" = "wlr-randr" ] && return 0; builtin command "$@"; }
+pgrep() { echo 4242; }
+kill() { :; }
+sleep() { :; }
+# a) só a saída virtual do VNC (767x660), 2 telas -> lado a lado, 16:9
+wlr-randr() { printf 'NOOP-1 "Headless output 2"\n  Make: (null)\n  Modes:\n    767x660 px (current)\n  Position: 0,0\n'; }
+write_vlc_layout 2 && ok "layout aplicado (saída virtual)" || bad "layout virtual" falhou
+R="$XDG_CONFIG_HOME/labwc/rc.xml"
+grep -q 'name="MoveTo" x="0" y="40"' "$R" && grep -q 'name="MoveTo" x="383" y="40"' "$R" && ok "janelas lado a lado (x=0 e x=383)" || bad "lado a lado" "$(cat $R)"
+grep -q 'width="383" height="215"' "$R" && ok "tamanho proporcional 16:9 (383x215)" || bad "16:9" "$(cat $R)"
+grep -q 'lazycast-layout' "$R" && ok "arquivo marcado como do LazyCast" || bad "marca" ""
+# b) dois HDMI reais -> cada tela em tela cheia no seu monitor (esq -> dir)
+wlr-randr() { printf 'HDMI-A-2 "B"\n  Modes:\n    1920x1080 px, 60.0 Hz (preferred, current)\n  Position: 1920,0\nHDMI-A-1 "A"\n  Modes:\n    1920x1080 px, 60.0 Hz (preferred, current)\n  Position: 0,0\nNOOP-1 "x"\n  Modes:\n    767x660 px (current)\n  Position: 0,0\n'; }
+write_vlc_layout 2 && ok "layout aplicado (2 HDMI)" || bad "layout hdmi" falhou
+grep -A1 'title="LazyCast-1"' "$R" | grep -q 'output="HDMI-A-1"' && ok "tela 1 no monitor da esquerda (HDMI-A-1)" || bad "tela1" "$(cat $R)"
+grep -A1 'title="LazyCast-2"' "$R" | grep -q 'output="HDMI-A-2"' && ok "tela 2 no monitor da direita (HDMI-A-2)" || bad "tela2" "$(cat $R)"
+grep -q 'ToggleFullscreen' "$R" && ok "tela cheia nos monitores reais" || bad "fullscreen" ""
+# c) rc.xml do usuário (sem a marca) não é sobrescrito
+echo '<labwc_config/>' > "$R"
+if write_vlc_layout 2 >/dev/null; then bad "não deveria sobrescrever" ok; else ok "rc.xml do usuário preservado"; fi
+unset -f command pgrep kill sleep wlr-randr
 
 echo ""
 echo "Resultado: $PASSED passou, $FAILED falhou"

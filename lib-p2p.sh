@@ -197,14 +197,64 @@ print_wifi_adapters() {
     return "$ok"
 }
 
-# Argumentos do VLC para posicionar a janela no monitor N (0 = mais à esquerda), via xrandr
-# (Xwayland). O VLC roda com --intf dummy e ignora a escolha de tela do Qt, então a posição
-# é dada por --video-x/--video-y/--width/--height. Vazio se xrandr não estiver disponível.
-vlc_args_for_screen() {
-    local n="$1" line w h x y
-    command -v xrandr >/dev/null 2>&1 || return 0
-    line=$(DISPLAY="${DISPLAY:-:0}" xrandr --query 2>/dev/null | awk '/ connected/ { for (i = 1; i <= NF; i++) if ($i ~ /^[0-9]+x[0-9]+[+][0-9]+[+][0-9]+$/) { split($i, a, /[x+]/); print a[1], a[2], a[3], a[4] } }' | sort -k3,3n | sed -n "$((n + 1))p")
-    [ -n "$line" ] || return 0
-    read -r w h x y <<< "$line"
-    echo "--no-fullscreen --no-video-deco --video-x=$x --video-y=$y --width=$w --height=$h"
+#################################################################################
+# Layout das janelas do VLC no labwc (Wayland): com 2+ telas (dual), cada janela recebe um título
+# (LazyCast-1, LazyCast-2) e uma regra de janela do labwc a posiciona:
+#   - monitores HDMI reais >= nº de telas -> cada tela em TELA CHEIA no seu monitor (esq -> dir)
+#   - senão (ex.: só a saída virtual do VNC/headless) -> janelas LADO A LADO, proporcionais 16:9,
+#     cabendo na saída disponível.
+# Motivo: no Wayland o compositor decide a posição; --video-x/--width do VLC são ignorados (testado
+# no Pi 5 com labwc 0.20: a janela abre centralizada no tamanho do vídeo). O título é aplicado
+# com --video-title e a regra por título foi validada no hardware.
+# O arquivo só é criado/alterado se não existir ou tiver a marca lazycast-layout (não sobrescreve
+# um rc.xml do usuário). Retorna 0 se aplicou a regra (então o VLC NÃO deve usar --fullscreen).
+#################################################################################
+labwc_outputs() {
+    XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}" WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}" wlr-randr 2>/dev/null | awk '
+        /^[^ ]/ { name = $1 }
+        /px/ && /current/ { split($1, a, "x"); w = a[1]; h = a[2] }
+        /Position:/ { split($2, p, ","); print name, w, h, p[1], p[2] }'
+}
+
+write_vlc_layout() {
+    local slots="$1" cfg rules="" i name w h x y ww hh panel=40
+    local -a outs real
+    command -v wlr-randr >/dev/null 2>&1 || return 1
+    pgrep -x labwc >/dev/null 2>&1 || return 1
+    cfg="${XDG_CONFIG_HOME:-$HOME/.config}/labwc/rc.xml"
+    if [ -f "$cfg" ] && ! grep -q 'lazycast-layout' "$cfg"; then
+        echo "AVISO: $cfg já existe e não é do LazyCast; layout das janelas não alterado."
+        return 1
+    fi
+    mapfile -t outs < <(labwc_outputs)
+    [ "${#outs[@]}" -gt 0 ] || return 1
+    mapfile -t real < <(printf '%s\n' "${outs[@]}" | grep -v '^NOOP' | sort -k4,4n)
+
+    if [ "${#real[@]}" -ge "$slots" ]; then
+        for ((i = 0; i < slots; i++)); do
+            read -r name w h x y <<< "${real[$i]}"
+            rules+="    <windowRule title=\"LazyCast-$((i + 1))\">
+      <action name=\"MoveToOutput\" output=\"$name\"/>
+      <action name=\"ToggleFullscreen\"/>
+    </windowRule>
+"
+        done
+    else
+        if [ "${#real[@]}" -ge 1 ]; then read -r name w h x y <<< "${real[0]}"; else read -r name w h x y <<< "${outs[0]}"; fi
+        ww=$((w / slots)); hh=$((ww * 9 / 16))
+        [ "$hh" -gt $((h - panel)) ] && { hh=$((h - panel)); ww=$((hh * 16 / 9)); }
+        for ((i = 0; i < slots; i++)); do
+            rules+="    <windowRule title=\"LazyCast-$((i + 1))\">
+      <action name=\"MoveTo\" x=\"$((x + i * ww))\" y=\"$((y + panel))\"/>
+      <action name=\"ResizeTo\" width=\"$ww\" height=\"$hh\"/>
+    </windowRule>
+"
+        done
+    fi
+    mkdir -p "$(dirname "$cfg")"
+    printf '<?xml version="1.0"?>\n<!-- lazycast-layout (gerado pelo LazyCast; apague para desfazer) -->\n<labwc_config>\n  <windowRules>\n%s  </windowRules>\n</labwc_config>\n' "$rules" > "$cfg"
+    # labwc --reconfigure exige LABWC_PID (só existe dentro da sessão); SIGHUP recarrega a configuração
+    kill -HUP "$(pgrep -x labwc | head -1)" 2>/dev/null
+    sleep 1
+    return 0
 }

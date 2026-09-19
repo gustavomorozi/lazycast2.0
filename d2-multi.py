@@ -42,6 +42,9 @@ display_screen = int(os.environ.get('LAZYCAST_SCREEN', '0'))
 # Argumentos extras do VLC p/ fixar a saída (ex.: '--video-x=1920 --video-y=0'); o antigo
 # --qt-fullscreen-screennumber era ignorado com --intf dummy.
 vlc_extra_args = os.environ.get('LAZYCAST_VLC_ARGS', '')
+# Título da janela do VLC (a regra de layout do labwc casa por título) e tela cheia opcional
+window_title = os.environ.get('LAZYCAST_WINDOW_TITLE', 'LazyCast-%d' % (display_screen + 1))
+vlc_fullscreen = os.environ.get('LAZYCAST_FULLSCREEN', '1') == '1'
 display_name = os.environ.get('LAZYCAST_NAME', 'raspberrypi')
 display_instance = "display1"  # Identificador da instância
 
@@ -501,7 +504,7 @@ def launchplayer(player_select):
 		if False: # Change False to True if you want to use gstreamer
 			os.system('gst-launch-1.0  -v  playbin   uri=udp://0.0.0.0:' + str(rtp_port) + '/wfd1.0/streamid=0  video-sink=autovideosink audio-sink=alsasink sync=false &')
 		else:
-			os.system('vlc --fullscreen ' + vlc_extra_args + ' rtp://0.0.0.0:' + str(rtp_port) + '/wfd1.0/streamid=0 --intf dummy --no-ts-trust-pcr --ts-seek-percent --network-caching=150 --no-mouse-events & ')
+			os.system('vlc ' + ('--fullscreen ' if vlc_fullscreen else '') + '--video-title=' + window_title + ' ' + vlc_extra_args + ' rtp://0.0.0.0:' + str(rtp_port) + '/wfd1.0/streamid=0 --intf dummy --no-ts-trust-pcr --ts-seek-percent --network-caching=150 --no-mouse-events & ')
 launchplayer(player_select)
 
 

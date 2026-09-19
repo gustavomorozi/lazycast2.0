@@ -155,18 +155,19 @@ do
 	echo "Your device is called: $display_name"
 	slot2_pid=""
 	if [ "$slots" -ge 2 ]; then
+		# layout das janelas (lado a lado ou 1 por monitor); se aplicado, o VLC não usa --fullscreen
+		if write_vlc_layout "$slots"; then export LAZYCAST_FULLSCREEN=0; fi
 		echo "Modo grupo compartilhado: Display 1 = $dhcp_start (tela $screen1), Display 2 = $ip2 (tela $screen2)"
 		(
 			while [ -d "/sys/class/net/$p2pinterface" ]
 			do
-				LAZYCAST_NAME="$display_name" LAZYCAST_RTP_PORT="$rtp2" LAZYCAST_SCREEN="$screen2" 					LAZYCAST_VLC_ARGS="${DISPLAY2_VLC_ARGS:-$(vlc_args_for_screen "$screen2")}" ./d2.py "$ip2"
+				LAZYCAST_NAME="$display_name" LAZYCAST_RTP_PORT="$rtp2" LAZYCAST_SCREEN="$screen2" 					LAZYCAST_VLC_ARGS="$DISPLAY2_VLC_ARGS" ./d2.py "$ip2"
 				sleep 1
 			done
 		) &
 		slot2_pid=$!
 	fi
 	slot1_vlc_args="$DISPLAY1_VLC_ARGS"
-	[ "$slots" -ge 2 ] && slot1_vlc_args="${DISPLAY1_VLC_ARGS:-$(vlc_args_for_screen "$screen1")}"
 	while :
 	do	
 		# Modificar configurações do d2.py dinamicamente
