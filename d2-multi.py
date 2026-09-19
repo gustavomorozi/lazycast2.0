@@ -523,7 +523,7 @@ def launchplayer(player_select):
 			os.makedirs(snap_dir, mode=0o700, exist_ok=True)
 		snap_args = ('--extraintf=oldrc --rc-unix=%s/vlc-%d.sock --rc-fake-tty --snapshot-path=%s '
 			'--snapshot-prefix=lc%d- --snapshot-format=jpg --snapshot-sequential ' % (snap_dir, rtp_port, snap_dir, rtp_port))
-		os.system('vlc ' + ('--vout=dummy ' if vlc_hidden else ('--fullscreen ' if vlc_fullscreen else '')) + '--video-title=' + window_title + ' ' + snap_args + vlc_extra_args + ' rtp://0.0.0.0:' + str(rtp_port) + '/wfd1.0/streamid=0 --intf dummy --no-ts-trust-pcr --ts-seek-percent --network-caching=150 --no-mouse-events & ')
+		os.system('vlc ' + ('--vout=dummy ' if vlc_hidden else ('--fullscreen ' if vlc_fullscreen else '')) + '--video-title=' + window_title + ' ' + snap_args + vlc_extra_args + ' rtp://0.0.0.0:' + str(rtp_port) + '/wfd1.0/streamid=0 --intf dummy --no-ts-trust-pcr --ts-seek-percent --network-caching=150 ' + ('' if vlc_hidden else '--no-mouse-events') + ' & ')
 launchplayer(player_select)
 
 

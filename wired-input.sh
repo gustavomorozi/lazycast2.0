@@ -82,11 +82,16 @@ elif [ "${LAZYCAST_FULLSCREEN:-1}" = "1" ]; then
     vlc_mode_args=(--fullscreen)
 fi
 
+# --no-mouse-events só com janela: com --vout=dummy ele impede o VLC de exibir quadros e o snapshot da prévia
+# nunca sai (testado no Pi 5).
+mouse_args=(--no-mouse-events)
+[ "$LAZYCAST_VLC_MODE" = "hidden" ] && mouse_args=()
+
 start_vlc() {
     vlc "${vlc_mode_args[@]}" --video-title="$title" --intf dummy \
         --extraintf=oldrc --rc-unix="$snap_dir/vlc-$port.sock" --rc-fake-tty \
         --snapshot-path="$snap_dir" --snapshot-prefix="lc$port-" --snapshot-format=jpg --snapshot-sequential \
-        --no-mouse-events "${extra[@]}" $(screen_vlc_args "$screen") "$mrl" >/dev/null 2>&1 < /dev/null &
+        "${mouse_args[@]}" "${extra[@]}" $(screen_vlc_args "$screen") "$mrl" >/dev/null 2>&1 < /dev/null &
     vlc_pid=$!
 }
 
