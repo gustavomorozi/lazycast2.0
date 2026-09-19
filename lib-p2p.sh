@@ -32,6 +32,8 @@ NM_PAUSED=0
 # Espera (até ~60 s) a rede subir no boot para não pausar o NetworkManager antes de conectar.
 wait_for_network() {
     command -v nmcli >/dev/null 2>&1 || return 0
+    # já pausado (ex.: all-dual.sh chamou all.sh): nmcli não responde, então não há o que esperar
+    ps -o stat= -C NetworkManager 2>/dev/null | grep -q '^T' && return 0
     local i
     for i in $(seq 1 30); do
         nmcli -t -f STATE general 2>/dev/null | grep -q '^connected' && return 0
@@ -99,18 +101,19 @@ register_wps_auth() {
 # Wi-Fi do grupo (a cada 1 s) e, quando a última desconecta, zera os leases e reinicia o udhcpd (libera na hora).
 # uso: watch_dhcp_release <interface do grupo> <conf do udhcpd> <arquivo de leases>
 watch_dhcp_release() {
-    local g="$1" conf="$2" lease="$3" seen=0 n
+    local g="$1" conf="$2" lease="$3" prev=0 n
     while [ -d "/sys/class/net/$g" ]; do
         n=$(iw dev "$g" station dump 2>/dev/null | grep -c '^Station')
-        if [ "$n" -gt 0 ]; then
-            seen=1
-        elif [ "$seen" = "1" ]; then
-            seen=0
+        if [ "$n" -lt "$prev" ]; then
+            # Alguém saiu: zera os leases e reinicia o udhcpd. Quem continua conectado mantém o IP (o
+            # udhcpd confirma no renovar) e o busybox não oferece IP que responde ARP; o IP livre
+            # volta ao pool na hora (pool de 1 IP no modo single, 2 no modo de grupo compartilhado).
             echo "Aparelho desconectou: liberando o IP (DHCP)"
             sudo pkill -f "[u]dhcpd $conf" 2>/dev/null
             rm -f "$lease"
             sudo busybox udhcpd "$conf"
         fi
+        prev=$n
         sleep 1
     done
 }
@@ -192,4 +195,16 @@ print_wifi_adapters() {
     done
     [ "$total" -eq 0 ] && echo "  (nenhum)"
     return "$ok"
+}
+
+# Argumentos do VLC para posicionar a janela no monitor N (0 = mais à esquerda), via xrandr
+# (Xwayland). O VLC roda com --intf dummy e ignora a escolha de tela do Qt, então a posição
+# é dada por --video-x/--video-y/--width/--height. Vazio se xrandr não estiver disponível.
+vlc_args_for_screen() {
+    local n="$1" line w h x y
+    command -v xrandr >/dev/null 2>&1 || return 0
+    line=$(DISPLAY="${DISPLAY:-:0}" xrandr --query 2>/dev/null | awk '/ connected/ { for (i = 1; i <= NF; i++) if ($i ~ /^[0-9]+x[0-9]+[+][0-9]+[+][0-9]+$/) { split($i, a, /[x+]/); print a[1], a[2], a[3], a[4] } }' | sort -k3,3n | sed -n "$((n + 1))p")
+    [ -n "$line" ] || return 0
+    read -r w h x y <<< "$line"
+    echo "--no-fullscreen --no-video-deco --video-x=$x --video-y=$y --width=$w --height=$h"
 }

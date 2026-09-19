@@ -70,6 +70,14 @@ for _ in $(seq 1 10); do
     sleep 2
 done
 print_wifi_adapters
+
+# [dual/1 adaptador] Com um único adaptador P2P não há como ter 2 grupos; usa UM grupo com DUAS fontes
+# (all.sh com SHARED_SLOTS=2). DUAL_STRATEGY=independent força o modo de 2 adaptadores.
+if [ "$P2P_DEV_COUNT" -lt 2 ] && [ "${DUAL_STRATEGY:-auto}" != "independent" ]; then
+    echo "Apenas $P2P_DEV_COUNT adaptador(es) Wi-Fi Direct: modo GRUPO COMPARTILHADO (experimental)."
+    echo "  As duas fontes entram no mesmo Wi-Fi do Pi: a 1ª que conectar vai para o Display 1, a 2ª para o Display 2."
+    SHARED_SLOTS=2 exec ./all.sh
+fi
 if [ "$P2P_DEV_COUNT" -lt 2 ]; then
     echo "AVISO: apenas $P2P_DEV_COUNT adaptador(es) Wi-Fi com suporte a Wi-Fi Direct (P2P)."
     echo "       O Display 2 só iniciará com um segundo adaptador (qualquer porta USB) que liste"

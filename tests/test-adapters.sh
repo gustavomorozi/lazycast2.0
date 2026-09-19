@@ -54,6 +54,16 @@ iface_mac() { case "$1" in wlan0) echo d8:3a:dd:be:91:ec ;; *) echo 00:11:22:33:
 iface_bus() { case "$1" in wlan0) echo interno ;; *) echo usb ;; esac; }
 eq "USB com nome wlx… sem p2p-dev usa a própria interface de controle" "$(list_p2p_devs | tr '\n' ' ')" "p2p-dev-wlan0 wlx001122334455 "
 
+# --- posicionamento do VLC por monitor (xrandr simulado; ordem esquerda -> direita)
+xrandr() { printf 'Screen 0: minimum 320 x 200
+XWAYLAND1 connected 1280x720+1920+0 (normal left inverted) 0mm x 0mm
+XWAYLAND0 connected primary 1920x1080+0+0 (normal left inverted) 0mm x 0mm
+XWAYLAND2 disconnected (normal left inverted)
+'; }
+eq "VLC monitor 0 = mais à esquerda" "$(vlc_args_for_screen 0)" "--no-fullscreen --no-video-deco --video-x=0 --video-y=0 --width=1920 --height=1080"
+eq "VLC monitor 1 = à direita" "$(vlc_args_for_screen 1)" "--no-fullscreen --no-video-deco --video-x=1920 --video-y=0 --width=1280 --height=720"
+eq "VLC monitor inexistente = vazio" "$(vlc_args_for_screen 2)" ""
+
 echo ""
 echo "Resultado: $PASSED passou, $FAILED falhou"
 [ "$FAILED" -eq 0 ]

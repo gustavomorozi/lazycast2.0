@@ -35,6 +35,17 @@ else
     player_select=2
 fi
 
+# [dual/1 adaptador] SHARED_SLOTS=2: UM grupo P2P (o Wi-Fi interno só sustenta um) e DUAS fontes
+# entram nele; cada fonte recebe um IP (.80, .81) e uma instância do receptor com porta RTP e
+# tela próprias. A 1ª fonte que conectar vai para o Display 1 e a 2ª para o Display 2.
+slots=${SHARED_SLOTS:-1}
+rtp1=${DISPLAY1_RTP_PORT:-1028}; screen1=${DISPLAY1_SCREEN:-0}
+rtp2=${DISPLAY2_RTP_PORT:-1030}; screen2=${DISPLAY2_SCREEN:-1}
+if [ "$slots" -ge 2 ]; then
+    dhcp_end="${dhcp_start%.*}.$(( ${dhcp_start##*.} + slots - 1 ))"
+    ip2="${dhcp_start%.*}.$(( ${dhcp_start##*.} + 1 ))"
+fi
+
 LD_LIBRARY_PATH=/opt/vc/lib
 export LD_LIBRARY_PATH
 echo 'Limpando informações de pareamento antigas...'
@@ -45,6 +56,8 @@ done
 
 pause_networkmanager
 cleanup_orphan_p2p_ifaces
+slot2_pid=""
+trap 'kill $slot2_pid 2>/dev/null; [ -n "$ip2" ] && pkill -f "[d]2.py $ip2" 2>/dev/null; resume_networkmanager; exit 0' INT TERM HUP
 
 while :
 do
@@ -140,6 +153,20 @@ do
 	watch_dhcp_release "$p2pinterface" ./udhcpd.conf "$PWD/udhcpd.leases" &
 	echo "The display is ready"
 	echo "Your device is called: $display_name"
+	slot2_pid=""
+	if [ "$slots" -ge 2 ]; then
+		echo "Modo grupo compartilhado: Display 1 = $dhcp_start (tela $screen1), Display 2 = $ip2 (tela $screen2)"
+		(
+			while [ -d "/sys/class/net/$p2pinterface" ]
+			do
+				LAZYCAST_NAME="$display_name" LAZYCAST_RTP_PORT="$rtp2" LAZYCAST_SCREEN="$screen2" 					LAZYCAST_VLC_ARGS="${DISPLAY2_VLC_ARGS:-$(vlc_args_for_screen "$screen2")}" ./d2.py "$ip2"
+				sleep 1
+			done
+		) &
+		slot2_pid=$!
+	fi
+	slot1_vlc_args="$DISPLAY1_VLC_ARGS"
+	[ "$slots" -ge 2 ] && slot1_vlc_args="${DISPLAY1_VLC_ARGS:-$(vlc_args_for_screen "$screen1")}"
 	while :
 	do	
 		# Modificar configurações do d2.py dinamicamente
@@ -148,7 +175,7 @@ do
 			sed -i "s/^sound_output_select = .*/sound_output_select = $sound_output/" d2.py
 		fi
 		# [fix] d2.py anuncia o nome configurado (antes: 'raspberrypi' fixo)
-		LAZYCAST_NAME="$display_name" ./d2.py "$dhcp_start"
+		LAZYCAST_NAME="$display_name" LAZYCAST_RTP_PORT="$rtp1" LAZYCAST_SCREEN="$screen1" LAZYCAST_VLC_ARGS="$slot1_vlc_args" ./d2.py "$dhcp_start"
 		if [ `sudo wpa_cli interface | grep -c "p2p-wl"` == 0 ] 
 		then
 			break
