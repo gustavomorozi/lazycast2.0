@@ -223,3 +223,14 @@ echo "Para alterar a configuração posteriormente:"
 echo "  - Edite o arquivo lazycast-config.conf"
 echo "  - Execute ./install.sh novamente"
 echo ""
+read -p "Deseja instalar o serviço de inicialização automática no boot? (S/n): " install_service
+if [[ ! "$install_service" =~ ^[Nn]$ ]]; then
+    echo ""
+    echo "Instalando serviço systemd..."
+    sudo ./install-service.sh
+else
+    echo ""
+    echo "Serviço não instalado. Você pode instalar depois com:"
+    echo "  sudo ./install-service.sh"
+fi
+echo ""

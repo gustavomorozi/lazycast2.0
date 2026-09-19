@@ -1,5 +1,55 @@
 # Changelog - LazyCast Dual Display
 
+## [Versão 2.3] - Inicialização Automática e Notificações
+
+### Adicionado
+- **Serviço Systemd**: Implementado serviço systemd para inicialização automática no boot
+- **Script de Background**: `lazycast-background.sh` para execução em background com monitoramento
+- **Script de Instalação de Serviço**: `install-service.sh` para configuração automática do systemd
+- **Script de Status**: `lazycast-status.sh` para verificação do status com notificações visuais
+- **Sistema de Notificações**: Notificações na interface gráfica sobre status do LazyCast
+- **Monitoramento Automático**: Sistema monitora e reinicia o LazyCast se necessário
+- **Integração com Instalador**: Instalador agora oferece opção de instalação do serviço
+
+### Funcionalidades do Sistema de Serviço
+- **Inicialização Automática**: LazyCast inicia automaticamente no boot
+- **Execução em Background**: Roda sem interferir com o uso normal do sistema
+- **Notificações Gráficas**: Status mostrado através de notificações do sistema
+- **Monitoramento de Saúde**: Sistema detecta problemas e reinicia automaticamente
+- **Status Detalhado**: Script dedicado para verificar status atual
+- **Log Centralizado**: Logs específicos para operação em background
+
+### Comandos de Gerenciamento
+- `sudo systemctl status lazycast` - Ver status do serviço
+- `sudo systemctl stop lazycast` - Parar o serviço
+- `sudo systemctl start lazycast` - Iniciar o serviço
+- `sudo systemctl restart lazycast` - Reiniciar o serviço
+- `sudo systemctl disable lazycast` - Desabilitar início automático
+- `./lazycast-status.sh` - Ver status detalhado com notificações
+
+### Benefícios
+- **Conveniência**: Não precisa iniciar manualmente após cada boot
+- **Invisibilidade**: Roda em background sem janelas de terminal
+- **Informação**: Usuário sempre sabe o status através de notificações
+- **Confiabilidade**: Sistema automático recupera de falhas
+- **Profissional**: Funciona como um serviço de sistema adequado
+
+### Arquivos Novos
+- `lazycast.service` - Arquivo de configuração systemd
+- `lazycast-background.sh` - Script de execução em background
+- `install-service.sh` - Script de instalação do serviço
+- `lazycast-status.sh` - Script de verificação de status
+
+### Arquivos Modificados
+- `install.sh` - Adicionada opção de instalação do serviço
+- `README.md` - Adicionada seção sobre inicialização automática
+
+### Notas
+- Requer bibliotecas de notificação (notify-send, zenity)
+- Funciona tanto em modo single quanto dual display
+- Logs são salvos em `lazycast-background.log`
+- Serviço pode ser desabilitado se não for desejado
+
 ## [Versão 2.2] - Remoção de PIN
 
 ### Removido

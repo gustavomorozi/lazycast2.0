@@ -1,10 +1,15 @@
 [Unit]
-Description=lazycast server
+Description=LazyCast Wireless Display Receiver
+After=network.target multi-user.target
 
 [Service]
-ExecStart=/home/pi/lazycast/all.sh
-WorkingDirectory=/home/pi/lazycast
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/lazycast2.0
+Environment=LD_LIBRARY_PATH=/opt/vc/lib
+ExecStart=/home/pi/lazycast2.0/lazycast-background.sh
+Restart=on-failure
+RestartSec=10
 
 [Install]
-WantedBy=default.target
-WantedBy=lightdm.service
+WantedBy=multi-user.target

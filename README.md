@@ -150,6 +150,40 @@ Para usar o modo dual display com duas saídas HDMI independentes:
 - Duas saídas HDMI conectadas
 - Suficiente largura de banda WiFi para duas conexões simultâneas
 
+### Inicialização Automática
+
+O LazyCast pode ser configurado para iniciar automaticamente no boot em background, com notificações na interface gráfica:
+
+**Durante a instalação:**
+O instalador perguntará se você deseja instalar o serviço de inicialização automática.
+
+**Instalação manual:**
+```bash
+sudo ./install-service.sh
+```
+
+**Após a instalação:**
+- O LazyCast iniciará automaticamente no boot
+- Rodará em background sem interferir com o uso normal do sistema
+- Notificações serão mostradas na interface gráfica sobre o status
+- Os displays aparecerão automaticamente como dispositivos disponíveis
+
+**Gerenciamento do serviço:**
+```bash
+sudo systemctl status lazycast      # Ver status
+sudo systemctl stop lazycast        # Parar serviço
+sudo systemctl start lazycast       # Iniciar serviço
+sudo systemctl restart lazycast     # Reiniciar serviço
+sudo systemctl disable lazycast    # Desabilitar início automático
+```
+
+**Verificar status atual:**
+```bash
+./lazycast-status.sh
+```
+
+Este script mostra o status detalhado do LazyCast com notificações visuais.
+
 # Dicas
 Defina a resolução no lado da fonte. lazycast anuncia todas as resoluções possíveis independentemente da resolução de renderização atual. Portanto, você pode querer alterar a resolução (na fonte) para corresponder à resolução real do display conectado ao Pi.
 
