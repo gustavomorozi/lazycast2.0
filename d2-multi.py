@@ -42,6 +42,9 @@ display_screen = int(os.environ.get('LAZYCAST_SCREEN', '0'))
 # Argumentos extras do VLC p/ fixar a saída (ex.: '--video-x=1920 --video-y=0'); o antigo
 # --qt-fullscreen-screennumber era ignorado com --intf dummy.
 vlc_extra_args = os.environ.get('LAZYCAST_VLC_ARGS', '')
+# Título da janela do VLC (a regra de layout do labwc casa por título) e tela cheia opcional
+window_title = os.environ.get('LAZYCAST_WINDOW_TITLE', 'LazyCast-%d' % (display_screen + 1))
+vlc_fullscreen = os.environ.get('LAZYCAST_FULLSCREEN', '1') == '1'
 display_name = os.environ.get('LAZYCAST_NAME', 'raspberrypi')
 display_instance = "display1"  # Identificador da instância
 
@@ -92,27 +95,35 @@ print(f"Player: {player_select}, Audio: {sound_output_select}")
 
 ####################################################
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server_address = (sourceip, 7236)
-sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-sock.settimeout(30)  # Timeout de 30 segundos para conexão
+def log(msg):
+	print('[' + time.strftime('%H:%M:%S') + '] ' + str(msg), flush=True)
 
+# [fix] Um socket NOVO por tentativa. Reusar o socket após um connect() falho fazia a 3ª tentativa
+# "conectar" sem conexão real (recv: No route to host) e o ciclo levava ~13 s com uma só tentativa
+# de verdade; o Windows desistia da sessão (BrokenPipe no M3) antes de o receptor chegar. Agora
+# tenta a cada 0,5 s (timeout curto) por até ~45 s, então conecta assim que a fonte fica online.
+CONNECT_TRIES = 30
 connectcounter = 0
-while True: 
+while True:
+	sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	server_address = (sourceip, 7236)
+	sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+	sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+	sock.settimeout(1.5)
 	try:
 		sock.connect(server_address)
 	except socket.error as e:
+		sock.close()
 		connectcounter = connectcounter + 1
-		if connectcounter < 3:
-			print('Retry ' + str(connectcounter) + '/3')
-			sleep(2)
-			continue
-		else:
-			sock.close()
+		if connectcounter >= CONNECT_TRIES:
+			log('Sem fonte em ' + sourceip + '; reiniciando o receptor')
 			sys.exit(1)
+		sleep(0.5)
+		continue
 	else:
 		break
+sock.settimeout(30)  # Timeout de 30 segundos para a negociação RTSP
+log('Conectado à fonte ' + sourceip)
 
 rtsp_buffer = b''
 def recv_rtsp_message(s):
@@ -493,7 +504,7 @@ def launchplayer(player_select):
 		if False: # Change False to True if you want to use gstreamer
 			os.system('gst-launch-1.0  -v  playbin   uri=udp://0.0.0.0:' + str(rtp_port) + '/wfd1.0/streamid=0  video-sink=autovideosink audio-sink=alsasink sync=false &')
 		else:
-			os.system('vlc --fullscreen ' + vlc_extra_args + ' rtp://0.0.0.0:' + str(rtp_port) + '/wfd1.0/streamid=0 --intf dummy --no-ts-trust-pcr --ts-seek-percent --network-caching=150 --no-mouse-events & ')
+			os.system('vlc ' + ('--fullscreen ' if vlc_fullscreen else '') + '--video-title=' + window_title + ' ' + vlc_extra_args + ' rtp://0.0.0.0:' + str(rtp_port) + '/wfd1.0/streamid=0 --intf dummy --no-ts-trust-pcr --ts-seek-percent --network-caching=150 --no-mouse-events & ')
 launchplayer(player_select)
 
 
@@ -507,7 +518,7 @@ sock.sendall(m7req.encode())
 data = recv_rtsp_message(sock)
 print("-------->\n" + data)
 
-print("---- Negotiation successful ----")
+log('---- Negotiation successful ----')
 
 sock.settimeout(None)
 fcntl.fcntl(sock, fcntl.F_SETFL, os.O_NONBLOCK)

@@ -17,6 +17,7 @@ echo ""
 
 # Opções: -y/--yes aceita todos os padrões (instalação sem perguntas); --no-service não instala o serviço
 ASSUME_YES=0
+DEFAULT_DISPLAY_MODE=1
 FORCE=0
 INSTALL_SERVICE=1
 for arg in "$@"; do
@@ -24,6 +25,7 @@ for arg in "$@"; do
         -y|--yes) ASSUME_YES=1 ;;
         --no-service) INSTALL_SERVICE=0 ;;
         --force) FORCE=1 ;;
+        --dual) DEFAULT_DISPLAY_MODE=2 ;;
     esac
 done
 
@@ -59,6 +61,7 @@ command -v busybox >/dev/null 2>&1 || missing_pkgs+=(busybox)
 command -v vlc >/dev/null 2>&1 || missing_pkgs+=(vlc)
 command -v python3 >/dev/null 2>&1 || missing_pkgs+=(python3)
 command -v iw >/dev/null 2>&1 || missing_pkgs+=(iw)
+command -v xrandr >/dev/null 2>&1 || missing_pkgs+=(x11-xserver-utils)
 python3 -c "import evdev" >/dev/null 2>&1 || missing_pkgs+=(python3-evdev)
 command -v notify-send >/dev/null 2>&1 || missing_pkgs+=(libnotify-bin)
 dpkg -s libx11-dev >/dev/null 2>&1 || missing_pkgs+=(libx11-dev)
@@ -71,6 +74,12 @@ if [ ${#missing_pkgs[@]} -gt 0 ]; then
         exit 1
     fi
 fi
+
+# Adaptadores Wi-Fi e compatibilidade com Wi-Fi Direct (o interno e qualquer USB, em qualquer porta)
+source ./lib-p2p.sh
+print_wifi_adapters
+P2P_ADAPTERS=$?
+echo ""
 
 # Detectar modelo do Raspberry Pi
 echo "Detectando modelo do Raspberry Pi..."
@@ -102,10 +111,10 @@ echo "2) Dual Display (Dois displays independentes - HDMI-1 e HDMI-2)"
 echo ""
 
 if [ "$PI5_DETECTED" = true ]; then
-    ask display_choice "Escolha (1 ou 2): " "1"
+    ask display_choice "Escolha (1 ou 2): " "$DEFAULT_DISPLAY_MODE"
 else
     echo "Nota: Para dual display, recomenda-se Raspberry Pi 5"
-    ask display_choice "Escolha (1 ou 2): " "1"
+    ask display_choice "Escolha (1 ou 2): " "$DEFAULT_DISPLAY_MODE"
 fi
 
 case $display_choice in
@@ -245,6 +254,10 @@ SOUND_OUTPUT_SELECT=$SOUND_OUTPUT
 LAZYCAST_AUTH="$LAZYCAST_AUTH"
 LAZYCAST_PIN="$LAZYCAST_PIN"
 
+# Dual display: "auto" usa 2 grupos se houver 2 adaptadores Wi-Fi Direct; senão 1 grupo com 2 fontes
+# (modo compartilhado). "independent" exige 2 adaptadores.
+DUAL_STRATEGY="auto"
+
 # Configurações adicionais
 DISABLE_1920_1080_60FPS=1
 ENABLE_MOUSE_KEYBOARD=0
@@ -259,6 +272,14 @@ echo "✓ Arquivo de configuração criado: lazycast-config.conf"
 # O arquivo foi criado como root; devolver a posse ao usuário que chamou o sudo
 if [ -n "$SUDO_USER" ]; then
     chown "$SUDO_USER":"$(id -gn "$SUDO_USER")" lazycast-config.conf
+fi
+
+if [ "$DISPLAY_MODE" = "2" ] && [ "$P2P_ADAPTERS" -lt 2 ]; then
+    echo "ℹ Só há $P2P_ADAPTERS adaptador(es) Wi-Fi com Wi-Fi Direct (P2P-client + P2P-GO). O Wi-Fi interno do Pi 5 sustenta"
+    echo "  um grupo por vez, então o dual display usará o modo GRUPO COMPARTILHADO (experimental): as duas fontes"
+    echo "  entram no mesmo Wi-Fi do Pi (a 1ª conectada vai para o Display 1, a 2ª para o Display 2)."
+    echo "  Para dois grupos independentes, plugue um adaptador USB compatível (qualquer porta):"
+    echo "  iw phy | grep -A9 'Supported interface modes' deve listar P2P-client e P2P-GO."
 fi
 
 # Compilar o projeto

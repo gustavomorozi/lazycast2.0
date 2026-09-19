@@ -48,9 +48,7 @@ echo "Display 2: $DISPLAY2_NAME ($DISPLAY2_IP) tela=$DISPLAY2_SCREEN rtp=$DISPLA
 echo "=========================================="
 echo ""
 
-list_p2p_devs() {
-    sudo wpa_cli interface 2>/dev/null | grep -E "^p2p-dev-"
-}
+# list_p2p_devs / resolve_p2p_dev_pin / print_wifi_adapters vêm do lib-p2p.sh (detecção por capacidade)
 
 pause_networkmanager
 cleanup_orphan_p2p_ifaces
@@ -71,10 +69,23 @@ for _ in $(seq 1 10); do
     [ "$P2P_DEV_COUNT" -ge 1 ] && break
     sleep 2
 done
-if [ "$P2P_DEV_COUNT" -lt 2 ]; then
-    echo "AVISO: apenas $P2P_DEV_COUNT interface(s) Wi-Fi P2P (p2p-dev-*) encontrada(s)."
-    echo "       O Display 2 só iniciará quando houver um segundo adaptador Wi-Fi com suporte a P2P."
+print_wifi_adapters
+
+# [dual/1 adaptador] Com um único adaptador P2P não há como ter 2 grupos; usa UM grupo com DUAS fontes
+# (all.sh com SHARED_SLOTS=2). DUAL_STRATEGY=independent força o modo de 2 adaptadores.
+if [ "$P2P_DEV_COUNT" -lt 2 ] && [ "${DUAL_STRATEGY:-auto}" != "independent" ]; then
+    echo "Apenas $P2P_DEV_COUNT adaptador(es) Wi-Fi Direct: modo GRUPO COMPARTILHADO (experimental)."
+    echo "  As duas fontes entram no mesmo Wi-Fi do Pi: a 1ª que conectar vai para o Display 1, a 2ª para o Display 2."
+    SHARED_SLOTS=2 exec ./all.sh
 fi
+if [ "$P2P_DEV_COUNT" -lt 2 ]; then
+    echo "AVISO: apenas $P2P_DEV_COUNT adaptador(es) Wi-Fi com suporte a Wi-Fi Direct (P2P)."
+    echo "       O Display 2 só iniciará com um segundo adaptador (qualquer porta USB) que liste"
+    echo "       P2P-client e P2P-GO em: iw phy | grep -A9 'Supported interface modes'"
+fi
+
+# layout das janelas do VLC (1 por monitor ou lado a lado); se aplicado, o VLC não usa --fullscreen
+if write_vlc_layout 2; then export LAZYCAST_FULLSCREEN=0; fi
 
 # Função para iniciar uma instância do LazyCast
 start_display_instance() {
@@ -118,7 +129,7 @@ start_display_instance() {
             # [RPi5/dual] N-ésima interface p2p-dev para a N-ésima instância
             # DISPLAYn_P2P_DEV fixa o adaptador (ordem de enumeração não é estável); senão usa o N-ésimo
             if [ -n "$p2p_dev_pin" ]; then
-                p2pdevinterface=$(list_p2p_devs | grep -Fx "$p2p_dev_pin")
+                p2pdevinterface=$(resolve_p2p_dev_pin "$p2p_dev_pin")
             else
                 p2pdevinterface=$(list_p2p_devs | sed -n "${dev_index}p")
             fi
