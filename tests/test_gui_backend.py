@@ -65,6 +65,16 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(cfg['LAZYCAST_AUTH'], 'pbc')
 
 
+class NameTests(unittest.TestCase):
+    def test_nomes_validos(self):
+        for ok in ('LazyCast-Fox', 'Sala 1', 'raspberry', 'a', 'X' * 32, 'tv_sala.2'):
+            self.assertTrue(backend.valid_display_name(ok), ok)
+
+    def test_nomes_invalidos_incluindo_injecao_de_shell(self):
+        for bad in ('', '   ', 'X' * 33, 'a"b', '$(rm -rf /)', '`id`', 'nome;ls', 'a\nb', "a'b", 'a$HOME', None):
+            self.assertFalse(backend.valid_display_name(bad), bad)
+
+
 class PinTests(unittest.TestCase):
     def test_pin_conhecido_valido(self):
         self.assertTrue(backend.wps_checksum_ok('12345670'))

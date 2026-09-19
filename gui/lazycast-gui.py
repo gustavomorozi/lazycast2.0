@@ -407,8 +407,8 @@ class SettingsPage(Gtk.ScrolledWindow):
         self.msg.set_text('Alterações ainda não aplicadas')
 
     def validate(self):
-        if not self.name.get_text().strip():
-            return 'Digite um nome para o display.'
+        if not backend.valid_display_name(self.name.get_text()):
+            return 'Nome inválido: use de 1 a 32 letras, números, espaço, ponto, hífen ou sublinhado.'
         if self.sw_pin.get_active() and not backend.wps_checksum_ok(self.pin_entry.get_text()):
             return 'PIN inválido. Use 8 dígitos válidos (toque em «Gerar novo»).'
         return None
@@ -419,7 +419,7 @@ class SettingsPage(Gtk.ScrolledWindow):
             self.msg.set_text(err)
             return
         updates = {
-            'DISPLAY1_NAME': self.name.get_text().strip().replace('"', ''),
+            'DISPLAY1_NAME': self.name.get_text().strip(),
             'DISPLAY_MODE': '2' if self.r2.get_active() else '1',
             'LAZYCAST_AUTH': 'pin' if self.sw_pin.get_active() else 'pbc',
             'DISABLE_1920_1080_60FPS': '1' if self.q50.get_active() else '0',

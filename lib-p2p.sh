@@ -258,3 +258,14 @@ write_vlc_layout() {
     sleep 1
     return 0
 }
+
+# Nome padrão do display: LazyCast-<animal em inglês> aleatório (ex.: LazyCast-Fox), sorteado a cada
+# instalação nova; a reinstalação mantém o nome existente. Pode ser trocado depois no painel gráfico
+# (aba Configurações) ou em DISPLAY1_NAME no lazycast-config.conf.
+LAZYCAST_ANIMALS=(Fox Wolf Bear Eagle Tiger Lion Panda Koala Otter Falcon Dolphin Whale Shark Turtle
+    Rabbit Deer Moose Bison Lynx Puma Jaguar Leopard Cheetah Hawk Owl Raven Swan Heron Crane Penguin
+    Seal Walrus Badger Beaver Hedgehog Squirrel Gecko Iguana Cobra Camel Llama Alpaca Zebra Giraffe
+    Rhino Hippo Gorilla Monkey Lemur Sloth Ferret Marten Panther Bobcat Coyote Gazelle Antelope Pelican)
+random_animal_name() {
+    echo "LazyCast-${LAZYCAST_ANIMALS[RANDOM % ${#LAZYCAST_ANIMALS[@]}]}"
+}

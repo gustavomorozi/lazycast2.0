@@ -91,6 +91,14 @@ def save_config(updates, path=None):
         f.write(update_config_text(text, updates))
 
 
+# ------------------------------------------------------------------ nome do display
+def valid_display_name(name):
+    """Nome que aparece no Windows/Android: 1 a 32 caracteres (limite do Wi-Fi Direct). Só letras, números,
+    espaço, ponto, hífen e sublinhado: o lazycast-config.conf é lido pelo shell (`source`), então aspas,
+    $ e crases não podem entrar."""
+    return bool(re.fullmatch(r"[A-Za-z0-9 ._-]{1,32}", (name or '').strip()))
+
+
 # ------------------------------------------------------------------ PIN WPS
 def wps_checksum_ok(pin):
     """PIN WPS de 8 dígitos com dígito verificador válido."""

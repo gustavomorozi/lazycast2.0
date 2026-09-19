@@ -141,19 +141,25 @@ echo ""
 
 HOSTNAME=$(uname -n)
 echo "Hostname atual: $HOSTNAME"
+# Nome padrão do display: o já configurado (reinstalação) ou LazyCast-<animal> aleatório (instalação nova)
+DEFAULT_NAME=""
+if [ -f lazycast-config.conf ]; then
+    DEFAULT_NAME=$(sed -n 's/^DISPLAY1_NAME="\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' lazycast-config.conf | head -1)
+fi
+DEFAULT_NAME=${DEFAULT_NAME:-$(random_animal_name)}
 
 if [ "$DISPLAY_MODE" = "1" ]; then
-    ask display1_name "Nome do display [$HOSTNAME]: " ""
-    DISPLAY1_NAME=${display1_name:-$HOSTNAME}
+    ask display1_name "Nome do display [$DEFAULT_NAME]: " ""
+    DISPLAY1_NAME=${display1_name:-$DEFAULT_NAME}
     DISPLAY2_NAME=""
 else
     # Com um Wi-Fi só, o Windows/Android listam UM dispositivo (um nome); a 2ª fonte entra no mesmo
     # nome. Por isso o nome padrão é neutro, sem "-Display1" (que sugeria existir só a Tela 1).
-    ask display1_name "Nome do display (aparece no Windows/celular) [$HOSTNAME]: " ""
-    DISPLAY1_NAME=${display1_name:-$HOSTNAME}
+    ask display1_name "Nome do display (aparece no Windows/celular) [$DEFAULT_NAME]: " ""
+    DISPLAY1_NAME=${display1_name:-$DEFAULT_NAME}
     
     ask display2_name "Nome do Display 2 [${HOSTNAME}-Display2]: " ""
-    DISPLAY2_NAME=${display2_name:-${HOSTNAME}-Display2}
+    DISPLAY2_NAME=${display2_name:-${DEFAULT_NAME}-2}
 fi
 
 
