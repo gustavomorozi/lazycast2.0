@@ -153,13 +153,23 @@ class HomePage(Gtk.Box):
         self.auth_lbl.set_text('Conexão sem PIN' if st['auth'] != 'pin' else 'Conexão com PIN')
         self._ensure_screens(st['mode'])
         for slot, (state, detail) in zip(st['slots'], self.screen_widgets):
+            kind = slot.get('kind', 'wireless')
             if slot['streaming']:
                 state.set_text('Recebendo imagem')
             elif slot['connected']:
                 state.set_text('Conectado, aguardando imagem')
+            elif kind == 'usb':
+                state.set_text('Aguardando a capturadora')
+            elif kind == 'stream':
+                state.set_text('Aguardando o Windows')
             else:
                 state.set_text('Aguardando aparelho')
-            detail.set_text(('De: %s' % slot['source']) if slot['source'] else '')
+            if slot['source']:
+                detail.set_text('De: %s' % slot['source'])
+            else:
+                detail.set_text({'usb': 'Fonte: ' + slot.get('label', 'USB'), 'stream': 'Fonte: ' + slot.get('label', 'rede')}.get(kind, ''))
+        if st.get('wired_only') and st['state'] == 'ready':
+            self.state_sub.set_text('As telas estão em entradas com fio: ligue a capturadora ou rode estender-iniciar.bat no Windows.')
         running = st['state'] in ('ready', 'connected', 'starting')
         self.btn_toggle.set_label('Parar' if running else 'Iniciar')
         self.btn_view.set_sensitive(running)
@@ -297,6 +307,27 @@ class SettingsPage(Gtk.ScrolledWindow):
                                       'No modo duas telas, dois aparelhos conectam ao mesmo nome: o 1º vai para a Tela 1 e o 2º para a Tela 2. (O Windows conecta a um receptor por vez.)', rb),
                          False, False, 0)
 
+        # Fonte de cada tela
+        self.src_combos = []
+        src_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        for k in range(2):
+            row = Gtk.Box(spacing=10)
+            lb = label('Tela %d:' % (k + 1), wrap=False)
+            combo = Gtk.ComboBoxText()
+            combo.connect('changed', self.mark_dirty)
+            row.pack_start(lb, False, False, 0)
+            row.pack_start(combo, True, True, 0)
+            src_box.pack_start(row, False, False, 0)
+            self.src_combos.append((row, combo))
+        rescan = Gtk.Button(label='Procurar entradas USB')
+        rescan.connect('clicked', lambda *_: self._fill_sources())
+        src_box.pack_start(rescan, False, False, 0)
+        self.pi_ip = label('', 'muted', selectable=True)
+        src_box.pack_start(self.pi_ip, False, False, 0)
+        outer.pack_start(self.section('Fonte de cada tela',
+                                      'Sem fio, capturadora HDMI→USB (em qualquer porta USB) ou a tela estendida do Windows pela rede '
+                                      '(rode estender-iniciar.bat no Windows).', src_box), False, False, 0)
+
         # Segurança
         self.sw_pin = Gtk.Switch()
         self.sw_pin.set_halign(Gtk.Align.START)
@@ -370,10 +401,40 @@ class SettingsPage(Gtk.ScrolledWindow):
         return card(box)
 
     # ---- estado
+    def _fill_sources(self, cfg=None):
+        """Preenche os seletores com as opções atuais (sem fio, rede e capturadoras USB detectadas)."""
+        was = self.loading
+        self.loading = True
+        cfg = cfg or backend.load_config()
+        usb = backend.list_usb_video()
+        for k, (row, combo) in enumerate(self.src_combos):
+            combo.remove_all()
+            self._src_values = getattr(self, '_src_values', {})
+            vals = []
+            for val, text in backend.source_options(k, cfg, usb):
+                combo.append_text(text)
+                vals.append(val)
+            self._src_values[k] = vals
+            cur = backend.screen_source(cfg, k)
+            cur = 'auto' if backend.parse_source(cur)[0] == 'wireless' else cur
+            combo.set_active(vals.index(cur) if cur in vals else 0)
+        ip = backend.pi_address()
+        self.pi_ip.set_text('IP deste Raspberry (informe ao Windows): %s' % (ip or 'não encontrado'))
+        self.loading = was
+
+    def _sources_for_save(self):
+        out = {}
+        for k, (row, combo) in enumerate(self.src_combos):
+            i = combo.get_active()
+            vals = getattr(self, '_src_values', {}).get(k, [])
+            out['SCREEN%d_SOURCE' % (k + 1)] = vals[i] if 0 <= i < len(vals) else 'auto'
+        return out
+
     def load(self):
         self.loading = True
         cfg = backend.load_config()
         self.cfg = cfg
+        self._fill_sources(cfg)
         self.name.set_text(cfg['DISPLAY1_NAME'])
         (self.r2 if cfg['DISPLAY_MODE'] == '2' else self.r1).set_active(True)
         pin_on = cfg['LAZYCAST_AUTH'] == 'pin'
@@ -425,6 +486,7 @@ class SettingsPage(Gtk.ScrolledWindow):
             'DISABLE_1920_1080_60FPS': '1' if self.q50.get_active() else '0',
             'ENABLE_MOUSE_KEYBOARD': '1' if self.sw_kb.get_active() else '0',
         }
+        updates.update(self._sources_for_save())
         if self.sw_pin.get_active():
             updates['LAZYCAST_PIN'] = self.pin_entry.get_text()
         boot = self.sw_boot.get_active()

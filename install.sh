@@ -220,6 +220,12 @@ if [ -f lazycast-config.conf ]; then
 fi
 LAZYCAST_AUTH=${LAZYCAST_AUTH:-pbc}
 
+# Preserva a fonte de cada tela já escolhida (a config é regravada a cada instalação)
+for _k in SCREEN1_SOURCE SCREEN2_SOURCE; do
+    _v=$(grep -m1 "^$_k=" lazycast-config.conf 2>/dev/null | cut -d= -f2- | tr -d '"')
+    [ -n "$_v" ] && printf -v "$_k" '%s' "$_v"
+done
+
 # Criar arquivo de configuração
 cat > lazycast-config.conf << EOF
 # LazyCast Dual Display Configuration
@@ -262,6 +268,11 @@ SOUND_OUTPUT_SELECT=$SOUND_OUTPUT
 # do Wi-Fi pode espelhar) ou "pin" = a fonte pede LAZYCAST_PIN.
 LAZYCAST_AUTH="$LAZYCAST_AUTH"
 LAZYCAST_PIN="$LAZYCAST_PIN"
+
+# Fonte de cada tela: auto (sem fio/Miracast) | usb:<nome em /dev/v4l/by-id> (capturadora HDMI->USB em qualquer
+# porta) | stream:<porta UDP> (tela estendida do Windows pela rede, ex.: stream:5004). Configurável no painel.
+SCREEN1_SOURCE="${SCREEN1_SOURCE:-auto}"
+SCREEN2_SOURCE="${SCREEN2_SOURCE:-auto}"
 
 # Dual display: "auto" usa 2 grupos se houver 2 adaptadores Wi-Fi Direct; senão 1 grupo com 2 fontes
 # (modo compartilhado). "independent" exige 2 adaptadores.

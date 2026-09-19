@@ -167,6 +167,82 @@ class HealthTests(unittest.TestCase):
         self.assertFalse(res['Wi-Fi Direct (P2P) disponível'])
 
 
+class SourceTests(unittest.TestCase):
+    def test_parse_source(self):
+        self.assertEqual(backend.parse_source('auto'), ('wireless', None))
+        self.assertEqual(backend.parse_source('wireless'), ('wireless', None))
+        self.assertEqual(backend.parse_source('usb:usb-X_Cap-video-index0'), ('usb', 'usb-X_Cap-video-index0'))
+        self.assertEqual(backend.parse_source('stream:5004'), ('stream', '5004'))
+        for bad in ('usb:', 'stream:', 'stream:abc', 'stream:5004;rm', 'xyz', ''):
+            self.assertEqual(backend.parse_source(bad), ('wireless', None), bad)
+
+    def test_nome_amigavel_da_capturadora(self):
+        self.assertEqual(backend.friendly_usb_name('usb-MACROSILICON_USB_Video-video-index0'), 'MACROSILICON USB Video')
+        self.assertEqual(backend.friendly_usb_name('usb-046d_HD_Pro_Webcam_C920_ABC123-video-index0'), '046d HD Pro Webcam C920 ABC123')
+
+    def test_lista_so_o_no_index0(self):
+        d = tempfile.mkdtemp()
+        for n in ('usb-Cap_A-video-index0', 'usb-Cap_A-video-index1', 'usb-Cam_B-video-index0'):
+            open(os.path.join(d, n), 'w').close()
+        got = backend.list_usb_video(d)
+        self.assertEqual([u['id'] for u in got], ['usb-Cam_B-video-index0', 'usb-Cap_A-video-index0'])
+        self.assertEqual(backend.list_usb_video('/nao/existe'), [])
+
+    def test_opcoes_incluem_rede_usb_e_fonte_ausente(self):
+        cfg = dict(backend.DEFAULTS, SCREEN1_SOURCE='usb:usb-Sumiu_Cap-video-index0')
+        usb = [dict(id='usb-Cap_A-video-index0', name='Cap A')]
+        vals = [v for v, _ in backend.source_options(0, cfg, usb)]
+        self.assertEqual(vals[:2], ['auto', 'stream:5004'])
+        self.assertIn('usb:usb-Cap_A-video-index0', vals)
+        self.assertIn('usb:usb-Sumiu_Cap-video-index0', vals)           # a atual continua listada
+        self.assertEqual(backend.source_options(1, dict(backend.DEFAULTS), [])[1][0], 'stream:5006')
+
+    def test_telas_sem_fio_e_portas(self):
+        cfg = dict(backend.DEFAULTS, SCREEN1_SOURCE='stream:5004')
+        self.assertEqual(backend.wireless_screens(cfg, 2), [1])
+        self.assertEqual(backend.rtp_port(cfg, 0), '1028')
+        self.assertEqual(backend.rtp_port(cfg, 1), '1030')
+
+    def test_status_so_com_fio_nao_exige_wifi_direct(self):
+        install_fake({'systemctl is-active': (0, 'active\n'), 'pgrep -f lc1028-': (0, '1\n'), 'pgrep -f lc1030-': (0, '1\n')})
+        base = tempfile.mkdtemp()
+        d = os.path.join(base, 'lazycast')
+        os.makedirs(d)
+        open(os.path.join(d, 'lc1028-latest.jpg'), 'wb').write(b'x')
+        open(os.path.join(d, 'lc1030-latest.jpg'), 'wb').write(b'x')
+        old = os.environ.get('XDG_RUNTIME_DIR')
+        os.environ['XDG_RUNTIME_DIR'] = base
+        try:
+            cfg = dict(backend.DEFAULTS, DISPLAY_MODE='2', SCREEN1_SOURCE='stream:5004', SCREEN2_SOURCE='stream:5006')
+            st = backend.get_status(cfg)
+            self.assertTrue(st['wired_only'])
+            self.assertEqual([s['kind'] for s in st['slots']], ['stream', 'stream'])
+            self.assertEqual(st['state'], 'connected')
+            self.assertTrue(all(s['streaming'] for s in st['slots']))
+            self.assertIsNone(st['group'])
+        finally:
+            if old is None:
+                os.environ.pop('XDG_RUNTIME_DIR', None)
+            else:
+                os.environ['XDG_RUNTIME_DIR'] = old
+
+    def test_status_misto_usa_o_ip_da_tela_sem_fio(self):
+        leases = ('Mac Address       IP Address      Host Name           Expires in\n'
+                  '9a:d7:42:d1:82:84 192.168.173.80  S25-Ultra           02:33:54\n')
+        install_fake({'systemctl is-active': (0, 'active\n'),
+                      'iw dev p2p-wlan0-5 station dump': (0, 'Station 9a:d7:42:d1:82:84 (on p2p-wlan0-5)\n'),
+                      'iw dev': (0, '\tInterface p2p-wlan0-5\n'), 'busybox dumpleases': (0, leases),
+                      'pgrep -f lc1030-': (0, '1\n')})
+        # tela 1 USB (ausente), tela 2 sem fio: a 1ª (e única) sem fio recebe o 1º IP (.80)
+        cfg = dict(backend.DEFAULTS, DISPLAY_MODE='2', SCREEN1_SOURCE='usb:usb-Nao_Existe-video-index0')
+        st = backend.get_status(cfg)
+        self.assertEqual(st['slots'][0]['kind'], 'usb')
+        self.assertFalse(st['slots'][0]['connected'])
+        self.assertEqual(st['slots'][1]['kind'], 'wireless')
+        self.assertEqual(st['slots'][1]['ip'], '192.168.173.80')
+        self.assertEqual(st['slots'][1]['source'], 'S25-Ultra')
+
+
 class SnapshotTests(unittest.TestCase):
     def test_pega_o_mais_recente_e_limpa_os_antigos(self):
         import time
