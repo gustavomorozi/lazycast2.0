@@ -283,7 +283,7 @@ class SettingsPage(Gtk.ScrolledWindow):
         self.name = Gtk.Entry()
         self.name.connect('changed', self.mark_dirty)
         outer.pack_start(self.section('Nome do display',
-                                      'É o nome que aparece no Windows e no celular.', self.name), False, False, 0)
+                                      'É o nome que aparece no Windows e no celular. O Wi-Fi do Pi mostra um único nome, mesmo com duas telas.', self.name), False, False, 0)
 
         # Telas
         self.r1 = Gtk.RadioButton.new_with_label_from_widget(None, 'Uma tela')
@@ -294,7 +294,7 @@ class SettingsPage(Gtk.ScrolledWindow):
         rb.pack_start(self.r1, False, False, 0)
         rb.pack_start(self.r2, False, False, 0)
         outer.pack_start(self.section('Telas',
-                                      'No modo duas telas, a 1ª fonte a conectar vai para a Tela 1 e a 2ª para a Tela 2.', rb),
+                                      'No modo duas telas, dois aparelhos conectam ao mesmo nome: o 1º vai para a Tela 1 e o 2º para a Tela 2. (O Windows conecta a um receptor por vez.)', rb),
                          False, False, 0)
 
         # Segurança

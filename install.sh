@@ -147,8 +147,10 @@ if [ "$DISPLAY_MODE" = "1" ]; then
     DISPLAY1_NAME=${display1_name:-$HOSTNAME}
     DISPLAY2_NAME=""
 else
-    ask display1_name "Nome do Display 1 [${HOSTNAME}-Display1]: " ""
-    DISPLAY1_NAME=${display1_name:-${HOSTNAME}-Display1}
+    # Com um Wi-Fi só, o Windows/Android listam UM dispositivo (um nome); a 2ª fonte entra no mesmo
+    # nome. Por isso o nome padrão é neutro, sem "-Display1" (que sugeria existir só a Tela 1).
+    ask display1_name "Nome do display (aparece no Windows/celular) [$HOSTNAME]: " ""
+    DISPLAY1_NAME=${display1_name:-$HOSTNAME}
     
     ask display2_name "Nome do Display 2 [${HOSTNAME}-Display2]: " ""
     DISPLAY2_NAME=${display2_name:-${HOSTNAME}-Display2}
