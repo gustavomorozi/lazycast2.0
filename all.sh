@@ -17,7 +17,6 @@ if [ -f lazycast-config.conf ]; then
     display_ip=$DISPLAY1_IP
     dhcp_start=$DISPLAY1_DHCP_START
     dhcp_end=$DISPLAY1_DHCP_END
-    pin=$DISPLAY1_PIN
     sound_output=$DISPLAY1_SOUND_OUTPUT
     player_select=$DISPLAY1_PLAYER_SELECT
 else
@@ -27,7 +26,6 @@ else
     display_ip="192.168.173.1"
     dhcp_start="192.168.173.80"
     dhcp_end="192.168.173.80"
-    pin="31415926"
     sound_output=2
     player_select=2
 fi
@@ -112,9 +110,6 @@ do
 	echo "Your device is called: $display_name"
 	while :
 	do	
-		echo "PIN:"	
-		sudo wpa_cli -i$p2pinterface wps_pin any $pin
-		echo ""
 		# Modificar configurações do d2.py dinamicamente
 		if [ -f d2.py ]; then
 			sed -i "s/^player_select = .*/player_select = $player_select/" d2.py

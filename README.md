@@ -85,7 +85,7 @@ make
 # Uso
 
 ## Modo Single Display (Padrão)
-Execute `./all.sh` para iniciar o receptor lazycast. Aguarde até a mensagem "The display is ready". O nome do display aparecerá após esta mensagem. Então, procure este nome no dispositivo de origem que você deseja fazer o cast. O número PIN padrão é ``31415926``.
+Execute `./all.sh` para iniciar o receptor lazycast. Aguarde até a mensagem "The display is ready". O nome do display aparecerá após esta mensagem. Então, procure este nome no dispositivo de origem que você deseja fazer o cast.
 
 É recomendado parar o cast pelos controles no lado da fonte (por exemplo, no PC).
 
@@ -102,7 +102,6 @@ Para usar o modo dual display com duas saídas HDMI independentes:
    - Detectar automaticamente se é um Raspberry Pi 5
    - Oferecer opção entre Single Display e Dual Display
    - Configurar nomes diferentes para cada display
-   - Configurar PINs diferentes para cada display
    - Configurar player e saída de áudio
 
 2. **Configuração HDMI**:
@@ -132,7 +131,6 @@ Para usar o modo dual display com duas saídas HDMI independentes:
    - `DISPLAY_MODE`: 1 para single, 2 para dual
    - `DISPLAY1_NAME`: Nome do primeiro display
    - `DISPLAY2_NAME`: Nome do segundo display
-   - `DISPLAY1_PIN`/`DISPLAY2_PIN`: PINs para cada display
    - `DISPLAY1_IP`/`DISPLAY2_IP`: IPs das redes P2P
    - `DISPLAY1_PLAYER_SELECT`/`DISPLAY2_PLAYER_SELECT`: Player para cada display
 
@@ -140,9 +138,10 @@ Para usar o modo dual display com duas saídas HDMI independentes:
 
 - **Independência Total**: Cada display opera com sua própria conexão WiFi P2P
 - **Nomes Distintos**: Aparecem como dispositivos separados no dispositivo de origem
-- **Configurações Individuais**: Player, áudio e PIN podem ser diferentes para cada display
+- **Configurações Individuais**: Player e áudio podem ser diferentes para cada display
 - **Resolução Separada**: Cada display pode ter resolução diferente
 - **Simultaneidade**: Ambos os displays podem receber conteúdo simultaneamente
+- **Conexão Simplificada**: Sem necessidade de PIN para conexão
 
 ### Requisitos:
 
@@ -158,11 +157,9 @@ Modifique parâmetros na seção "settings" em ``d2.py`` para alterar a porta de
 
 As resoluções máximas suportadas são 1920x1080p60 e 1920x1200p30. A GPU do Pi pode ter dificuldade para lidar com 1920x1080p60, o que resulta em alta latência. Neste caso, reduza o FPS para 1920x1080p50.
 
-Para alterar o número PIN padrão, substitua a string ``31415926`` em ``all.sh`` por outro número de 8 dígitos.
-
 Você pode esconder o cursor do Pi usando ``unclutter -idle 3``. Veja [este post](https://forums.raspberrypi.com/viewtopic.php?t=234879#p1437648).
 
-Depois que o Pi se conecta à fonte, ele tem um endereço IP de ``192.168.173.1`` e esta conexão pode ser reutilizada para outros propósitos como SSH. Por outro lado, como eles estão na mesma sub-rede, precauções devem ser tomadas para evitar acesso não autorizado ao Pi por qualquer pessoa que conheça o número PIN.
+Depois que o Pi se conecta à fonte, ele tem um endereço IP de ``192.168.173.1`` e esta conexão pode ser reutilizada para outros propósitos como SSH. Por outro lado, como eles estão na mesma sub-rede, precauções devem ser tomadas para evitar acesso não autorizado ao Pi.
 
 Dois players internos foram escritos para Raspberry Pi 3. VLC, omxplayer ou gstreamer podem ser usados em outras plataformas. (Veja [aqui](https://gstreamer.freedesktop.org/documentation/installing/on-linux.html) para detalhes da instalação do gstreamer.)
 
@@ -171,7 +168,7 @@ Dois players internos foram escritos para Raspberry Pi 3. VLC, omxplayer ou gstr
 Para redirecionar entradas de mouse e teclado no Pi, primeiro instale evdev (``pip install evdev``) e então defina ``enable_mouse_keyboard`` para ``1`` em ``d2.py``. Você também precisa permitir entradas de mouse e teclado no PC.
 
 # Problemas Conhecidos
-lazycast tenta lembrar as credenciais de pareamento para que entrar com o PIN seja necessário apenas uma vez para cada dispositivo. No entanto, este recurso não parece funcionar corretamente o tempo todo com imagens recentes do Raspbian. Portanto, o re-pareamento pode ser necessário após cada reinicialização do Raspberry Pi. Tente limpar as informações do 'lazycast' no dispositivo de origem antes de re-parear se você encontrar problemas de pareamento.
+Em alguns casos, pode ser necessário re-parear o dispositivo após cada reinicialização do Raspberry Pi. Tente limpar as informações do 'lazycast' no dispositivo de origem antes de re-parear se você encontrar problemas de pareamento.
 
 Player2 parece ter um bug de double-free que causa travamento ao reproduzir alguns vídeos. Atualmente um workaround (que monitora constantemente a vitalidade do player2) está implementado.
 

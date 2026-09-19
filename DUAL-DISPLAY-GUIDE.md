@@ -25,9 +25,8 @@ O instalador irá guiá-lo através das seguintes opções:
 
 1. **Modo de Display**: Escolha entre Single Display (1) ou Dual Display (2)
 2. **Nomes dos Displays**: Configure nomes distintos para cada display
-3. **PINs**: Defina PINs de conexão para cada display
-4. **Player**: Escolha o player de vídeo (player1, player2, omxplayer, VLC)
-5. **Áudio**: Configure a saída de áudio (HDMI, 3.5mm, ALSA)
+3. **Player**: Escolha o player de vídeo (player1, player2, omxplayer, VLC)
+4. **Áudio**: Configure a saída de áudio (HDMI, 3.5mm, ALSA)
 
 ### 3. Configurar HDMI
 
@@ -76,7 +75,6 @@ DISPLAY1_NAME="MeuPi-Display1"
 DISPLAY1_IP="192.168.173.1"
 DISPLAY1_DHCP_START="192.168.173.80"
 DISPLAY1_DHCP_END="192.168.173.80"
-DISPLAY1_PIN="31415926"
 DISPLAY1_SOUND_OUTPUT=2
 DISPLAY1_PLAYER_SELECT=2
 
@@ -85,7 +83,6 @@ DISPLAY2_NAME="MeuPi-Display2"
 DISPLAY2_IP="192.168.174.1"
 DISPLAY2_DHCP_START="192.168.174.80"
 DISPLAY2_DHCP_END="192.168.174.80"
-DISPLAY2_PIN="27182818"
 DISPLAY2_SOUND_OUTPUT=2
 DISPLAY2_PLAYER_SELECT=2
 ```

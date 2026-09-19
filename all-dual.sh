@@ -41,10 +41,9 @@ start_display_instance() {
     local display_ip=$2
     local dhcp_start=$3
     local dhcp_end=$4
-    local pin=$5
-    local sound_output=$6
-    local player_select=$7
-    local interface_suffix=$8
+    local sound_output=$5
+    local player_select=$6
+    local interface_suffix=$7
     
     echo "Iniciando instância para $display_name..."
     
@@ -148,10 +147,6 @@ start_display_instance() {
             
             while :
             do    
-                echo "PIN para $display_name:"    
-                sudo wpa_cli -i$p2pinterface wps_pin any $pin
-                echo ""
-                
                 # Executar d2.py com configuração específica
                 DISPLAY=:0 ./d2.py $dhcp_start
                 
@@ -174,14 +169,14 @@ start_display_instance() {
 
 # Iniciar Display 1
 echo "Iniciando Display 1..."
-display1_pid=$(start_display_instance "$DISPLAY1_NAME" "$DISPLAY1_IP" "$DISPLAY1_DHCP_START" "$DISPLAY1_DHCP_END" "$DISPLAY1_PIN" "$DISPLAY1_SOUND_OUTPUT" "$DISPLAY1_PLAYER_SELECT" "display1")
+display1_pid=$(start_display_instance "$DISPLAY1_NAME" "$DISPLAY1_IP" "$DISPLAY1_DHCP_START" "$DISPLAY1_DHCP_END" "$DISPLAY1_SOUND_OUTPUT" "$DISPLAY1_PLAYER_SELECT" "display1")
 
 # Aguardar um pouco antes de iniciar o segundo display
 sleep 3
 
 # Iniciar Display 2
 echo "Iniciando Display 2..."
-display2_pid=$(start_display_instance "$DISPLAY2_NAME" "$DISPLAY2_IP" "$DISPLAY2_DHCP_START" "$DISPLAY2_DHCP_END" "$DISPLAY2_PIN" "$DISPLAY2_SOUND_OUTPUT" "$DISPLAY2_PLAYER_SELECT" "display2")
+display2_pid=$(start_display_instance "$DISPLAY2_NAME" "$DISPLAY2_IP" "$DISPLAY2_DHCP_START" "$DISPLAY2_DHCP_END" "$DISPLAY2_SOUND_OUTPUT" "$DISPLAY2_PLAYER_SELECT" "display2")
 
 echo ""
 echo "=========================================="
@@ -202,11 +197,11 @@ while true; do
     # Verificar se os processos ainda estão rodando
     if ! kill -0 $display1_pid 2>/dev/null; then
         echo "Display 1 parou inesperadamente"
-        display1_pid=$(start_display_instance "$DISPLAY1_NAME" "$DISPLAY1_IP" "$DISPLAY1_DHCP_START" "$DISPLAY1_DHCP_END" "$DISPLAY1_PIN" "$DISPLAY1_SOUND_OUTPUT" "$DISPLAY1_PLAYER_SELECT" "display1")
+        display1_pid=$(start_display_instance "$DISPLAY1_NAME" "$DISPLAY1_IP" "$DISPLAY1_DHCP_START" "$DISPLAY1_DHCP_END" "$DISPLAY1_SOUND_OUTPUT" "$DISPLAY1_PLAYER_SELECT" "display1")
     fi
     
     if ! kill -0 $display2_pid 2>/dev/null; then
         echo "Display 2 parou inesperadamente"
-        display2_pid=$(start_display_instance "$DISPLAY2_NAME" "$DISPLAY2_IP" "$DISPLAY2_DHCP_START" "$DISPLAY2_DHCP_END" "$DISPLAY2_PIN" "$DISPLAY2_SOUND_OUTPUT" "$DISPLAY2_PLAYER_SELECT" "display2")
+        display2_pid=$(start_display_instance "$DISPLAY2_NAME" "$DISPLAY2_IP" "$DISPLAY2_DHCP_START" "$DISPLAY2_DHCP_END" "$DISPLAY2_SOUND_OUTPUT" "$DISPLAY2_PLAYER_SELECT" "display2")
     fi
 done

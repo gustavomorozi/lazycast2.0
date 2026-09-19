@@ -1,5 +1,30 @@
 # Changelog - LazyCast Dual Display
 
+## [Versão 2.2] - Remoção de PIN
+
+### Removido
+- **Sistema de PIN**: Removida a necessidade de PIN para conexão
+- **Prompt de PIN**: Eliminada a solicitação de PIN durante conexão
+- **Configuração de PIN**: Removida configuração de PIN do instalador e arquivos de configuração
+- **Variáveis de PIN**: Removidas variáveis DISPLAY1_PIN e DISPLAY2_PIN
+
+### Benefícios
+- **Conexão Simplificada**: Processo de conexão mais rápido e direto
+- **Experiência do Usuário**: Menos etapas para conectar dispositivos
+- **Compatibilidade**: Melhor compatibilidade com diferentes dispositivos de origem
+
+### Arquivos Modificados
+- `all.sh`: Removida lógica de PIN
+- `all-dual.sh`: Removida lógica de PIN em instâncias dual display
+- `install.sh`: Removida configuração de PIN do instalador
+- `README.md`: Atualizada documentação removendo referências a PIN
+- `DUAL-DISPLAY-GUIDE.md`: Atualizado guia removendo PIN
+
+### Notas
+- A remoção do PIN simplifica o processo de conexão
+- Segurança depende da rede WiFi local (como na configuração original)
+- Recomenda-se usar em redes confiáveis
+
 ## [Versão 2.1] - Dual Display Support
 
 ### Adicionado

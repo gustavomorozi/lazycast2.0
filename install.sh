@@ -87,19 +87,7 @@ else
     DISPLAY2_NAME=${display2_name:-${HOSTNAME}-Display2}
 fi
 
-echo ""
-echo "=========================================="
-echo "  Configuração de PIN"
-echo "=========================================="
-echo ""
 
-read -p "PIN para Display 1 [31415926]: " display1_pin
-DISPLAY1_PIN=${display1_pin:-31415926}
-
-if [ "$DISPLAY_MODE" = "2" ]; then
-    read -p "PIN para Display 2 [31415926]: " display2_pin
-    DISPLAY2_PIN=${display2_pin:-31415926}
-fi
 
 echo ""
 echo "=========================================="
@@ -137,13 +125,11 @@ echo "=========================================="
 echo ""
 echo "Modo de Display: $([ "$DISPLAY_MODE" = "1" ] && echo "Single Display" || echo "Dual Display")"
 echo "Nome Display 1: $DISPLAY1_NAME"
-echo "PIN Display 1: $DISPLAY1_PIN"
 echo "Player: $PLAYER_SELECT"
 echo "Áudio: $SOUND_OUTPUT"
 
 if [ "$DISPLAY_MODE" = "2" ]; then
     echo "Nome Display 2: $DISPLAY2_NAME"
-    echo "PIN Display 2: $DISPLAY2_PIN"
 fi
 
 echo ""
@@ -174,7 +160,6 @@ DISPLAY1_NAME="$DISPLAY1_NAME"
 DISPLAY1_IP="192.168.173.1"
 DISPLAY1_DHCP_START="192.168.173.80"
 DISPLAY1_DHCP_END="192.168.173.80"
-DISPLAY1_PIN="$DISPLAY1_PIN"
 DISPLAY1_SOUND_OUTPUT=$SOUND_OUTPUT
 DISPLAY1_PLAYER_SELECT=$PLAYER_SELECT
 
@@ -183,7 +168,6 @@ DISPLAY2_NAME="$DISPLAY2_NAME"
 DISPLAY2_IP="192.168.174.1"
 DISPLAY2_DHCP_START="192.168.174.80"
 DISPLAY2_DHCP_END="192.168.174.80"
-DISPLAY2_PIN="$DISPLAY2_PIN"
 DISPLAY2_SOUND_OUTPUT=$SOUND_OUTPUT
 DISPLAY2_PLAYER_SELECT=$PLAYER_SELECT
 
