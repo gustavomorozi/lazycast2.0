@@ -14,6 +14,8 @@
 cd "$(dirname "$0")" || exit 1
 BASE_DIR="$(pwd)"
 
+source ./lib-p2p.sh
+
 # Carregar configurações
 if [ -f lazycast-config.conf ]; then
     source lazycast-config.conf
@@ -156,6 +158,8 @@ start_display_instance() {
                 while [ `echo "${ain}" | grep -cE "$group_re"` -lt 1 ]; do
                     result=$(sudo wpa_cli p2p_group_add -i"$p2pdevinterface" persistent$perstr)
                     if [ "$result" == "FAIL" ]; then
+                        echo "p2p_group_add falhou (FAIL); limpando interfaces P2P órfãs"
+                        cleanup_orphan_p2p_ifaces
                         # persistent inválido: tenta de novo sem ele
                         perstr=""
                     fi

@@ -13,7 +13,7 @@ fail() { echo "✗ $1"; FAILED=$((FAILED + 1)); }
 check() { local d="$1"; shift; if "$@" >/dev/null 2>&1; then pass "$d"; else fail "$d"; fi; }
 
 # Sintaxe
-for f in all.sh all-dual.sh install.sh install-service.sh setup-hdmi.sh lazycast-background.sh; do
+for f in lib-p2p.sh all.sh all-dual.sh install.sh install-service.sh setup-hdmi.sh lazycast-background.sh; do
     check "bash -n $f" bash -n "$f"
 done
 PY=$(command -v python3 || command -v python)
@@ -52,6 +52,9 @@ check "d2.py sem referências a h264.bin/player.bin/omxplayer ativos" bash -c "!
 check "d2.py força player_select = 0" bash -c "grep -q '^player_select = 0' d2.py && grep -q '^player_select = 0' d2-multi.py"
 check "install.sh recusa hardware não-Pi5 sem --force" bash -c "grep -q 'somente o Raspberry Pi 5' install.sh"
 check "install.sh aceita --yes" bash -c "grep -q -- '--yes' install.sh"
+
+check "all.sh/all-dual.sh limpam interfaces P2P órfãs" bash -c "grep -q cleanup_orphan_p2p_ifaces all.sh && grep -q cleanup_orphan_p2p_ifaces all-dual.sh"
+check "install.sh não referencia player_health_check.sh" bash -c "! grep -q player_health_check install.sh"
 
 # Serviço: ambiente de sessão presente (evita dbus-launch órfão)
 check "lazycast.service define XDG_RUNTIME_DIR e D-Bus" bash -c "grep -q XDG_RUNTIME_DIR lazycast.service && grep -q DBUS_SESSION_BUS_ADDRESS lazycast.service"

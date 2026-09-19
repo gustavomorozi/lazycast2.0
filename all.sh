@@ -12,6 +12,8 @@
 # O serviço/cron pode chamar este script de outro diretório
 cd "$(dirname "$0")" || exit 1
 
+source ./lib-p2p.sh
+
 # Carregar configurações se disponíveis
 if [ -f lazycast-config.conf ]; then
     source lazycast-config.conf
@@ -40,6 +42,8 @@ echo 'Limpando informações de pareamento antigas...'
 for dev in $(sudo wpa_cli interface 2>/dev/null | grep -E "^p2p-dev-"); do
 	sudo wpa_cli -i "$dev" remove_network all >/dev/null 2>&1 || true
 done
+
+cleanup_orphan_p2p_ifaces
 
 while :
 do
@@ -90,6 +94,8 @@ do
 				result=$(sudo wpa_cli p2p_group_add -i$p2pdevinterface persistent$perstr)
 				if [ "$result" == "FAIL" ]					
 				then
+					echo "p2p_group_add falhou (FAIL); limpando interfaces P2P órfãs e tentando de novo"
+					cleanup_orphan_p2p_ifaces
 					wlanfreq=""
 					managefrequency=0
 				fi
