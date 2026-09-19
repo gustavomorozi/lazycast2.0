@@ -9,7 +9,29 @@
 #   under the GPL along with build & install instructions.
 #
 #################################################################################
-managefrequency=0
+# Carregar configurações se disponíveis
+if [ -f lazycast-config.conf ]; then
+    source lazycast-config.conf
+    managefrequency=$MANAGE_FREQUENCY
+    display_name=$DISPLAY1_NAME
+    display_ip=$DISPLAY1_IP
+    dhcp_start=$DISPLAY1_DHCP_START
+    dhcp_end=$DISPLAY1_DHCP_END
+    pin=$DISPLAY1_PIN
+    sound_output=$DISPLAY1_SOUND_OUTPUT
+    player_select=$DISPLAY1_PLAYER_SELECT
+else
+    # Configurações padrão
+    managefrequency=0
+    display_name=$(uname -n)
+    display_ip="192.168.173.1"
+    dhcp_start="192.168.173.80"
+    dhcp_end="192.168.173.80"
+    pin="31415926"
+    sound_output=2
+    player_select=2
+fi
+
 LD_LIBRARY_PATH=/opt/vc/lib
 export LD_LIBRARY_PATH
 while :
@@ -26,7 +48,7 @@ do
 
 	else
 		sudo wpa_cli -i$p2pdevinterface p2p_find type=progressive
-		sudo wpa_cli -i$p2pdevinterface set device_name "$(uname -n)"
+		sudo wpa_cli -i$p2pdevinterface set device_name "$display_name"
 		sudo wpa_cli -i$p2pdevinterface set device_type 7-0050F204-1
 		sudo wpa_cli -i$p2pdevinterface set p2p_go_ht40 1
 		sudo wpa_cli -i$p2pdevinterface wfd_subelem_set 0 000600111c44012c
@@ -78,22 +100,27 @@ do
 	p2pinterface=$(echo "${ain}" | grep "p2p-wl" | grep -v "interface")
 	echo $p2pinterface
 
-	sudo ifconfig $p2pinterface 192.168.173.1
-	printf "start	192.168.173.80\n">udhcpd.conf
-	printf "end	192.168.173.80\n">>udhcpd.conf
+	sudo ifconfig $p2pinterface $display_ip
+	printf "start	$dhcp_start\n">udhcpd.conf
+	printf "end	$dhcp_end\n">>udhcpd.conf
 	printf "interface	$p2pinterface\n">>udhcpd.conf
 	printf "option subnet 255.255.255.0\n">>udhcpd.conf
 	printf "option lease 10000">>udhcpd.conf
 	sleep 3
 	sudo busybox udhcpd ./udhcpd.conf 
 	echo "The display is ready"
-	echo "Your device is called: "$(uname -n)""
+	echo "Your device is called: $display_name"
 	while :
 	do	
 		echo "PIN:"	
-		sudo wpa_cli -i$p2pinterface wps_pin any 31415926
+		sudo wpa_cli -i$p2pinterface wps_pin any $pin
 		echo ""
-		./d2.py
+		# Modificar configurações do d2.py dinamicamente
+		if [ -f d2.py ]; then
+			sed -i "s/^player_select = .*/player_select = $player_select/" d2.py
+			sed -i "s/^sound_output_select = .*/sound_output_select = $sound_output/" d2.py
+		fi
+		./d2.py $dhcp_start
 		if [ `sudo wpa_cli interface | grep -c "p2p-wl"` == 0 ] 
 		then
 			break

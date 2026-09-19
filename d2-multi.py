@@ -13,6 +13,8 @@
     GNU General Public License for more details.
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
+    
+    Modified for multi-display support in LazyCast Dual Display
 """
 import socket
 import fcntl, os
@@ -24,37 +26,66 @@ from time import sleep
 import sys
 import subprocess
 import argparse
+import configparser
+
 ##################### Settings #####################
 player_select = 2
-# 0: non-RPi systems. (using vlc or gstreamer)
-# 1: player1 has lower latency.
-# 2: player2 handles still images and sound better.
-# 3: omxplayer # Using this option for video playback on Android
 sound_output_select = 2
-# 0: HDMI sound output
-# 1: 3.5mm audio jack output
-# 2: alsa
 disable_1920_1080_60fps = 1
 enable_mouse_keyboard = 0
-
 display_power_management = 0
-# 1: (For projectors) Put the display in sleep mode when not in use by lazycast 
+display_instance = "display1"  # Identificador da instância
 
-####################################################
+# Carregar configurações do arquivo se disponível
+def load_config(config_file='lazycast-config.conf'):
+    global player_select, sound_output_select, disable_1920_1080_60fps
+    global enable_mouse_keyboard, display_power_management, display_instance
+    
+    if os.path.exists(config_file):
+        try:
+            config = configparser.ConfigParser()
+            config.read(config_file)
+            
+            # Tentar ler como arquivo de configuração simples (key=value)
+            with open(config_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        key = key.strip()
+                        value = value.strip().strip('"\'')
+                        
+                        if key == 'DISPLAY1_PLAYER_SELECT' and display_instance == "display1":
+                            player_select = int(value)
+                        elif key == 'DISPLAY2_PLAYER_SELECT' and display_instance == "display2":
+                            player_select = int(value)
+                        elif key == 'DISPLAY1_SOUND_OUTPUT' and display_instance == "display1":
+                            sound_output_select = int(value)
+                        elif key == 'DISPLAY2_SOUND_OUTPUT' and display_instance == "display2":
+                            sound_output_select = int(value)
+                        elif key == 'DISABLE_1920_1080_60FPS':
+                            disable_1920_1080_60fps = int(value)
+                        elif key == 'ENABLE_MOUSE_KEYBOARD':
+                            enable_mouse_keyboard = int(value)
+                        elif key == 'DISPLAY_POWER_MANAGEMENT':
+                            display_power_management = int(value)
+        except Exception as e:
+            print(f"Erro ao carregar configuração: {e}")
 
 parser = argparse.ArgumentParser()
 parser.add_argument('arg1', nargs='?', default='192.168.173.80')
-parser.add_argument('--config', help='Caminho para arquivo de configuração')
+parser.add_argument('--config', default='lazycast-config.conf', help='Arquivo de configuração')
+parser.add_argument('--instance', default='display1', help='Identificador da instância (display1/display2)')
 args = parser.parse_args()
-sourceip = vars(args)['arg1']
 
-# Carregar configurações adicionais se disponível
-config_file = args.config if args.config else 'lazycast-config.conf'
-if os.path.exists(config_file):
-    import configparser
-    config = configparser.ConfigParser()
-    config.read(config_file)
-    # Aqui poderíamos carregar configurações adicionais do arquivo
+sourceip = vars(args)['arg1']
+display_instance = args.instance
+load_config(args.config)
+
+print(f"Instância: {display_instance}")
+print(f"Player: {player_select}, Audio: {sound_output_select}")
+
+####################################################
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_address = (sourceip, 7236)
@@ -66,15 +97,10 @@ while True:
 	try:
 		sock.connect(server_address)
 	except socket.error as e:
-		#connectcounter = connectcounter + 1
-		#if connectcounter == 3:
 		sock.close()
 		sys.exit(1)
 	else:
 		break
-
-
-
 
 tohid = [0, 41, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 45, 46, 42, 43, 20, 26, 8, 21, 23, 28, 24, 12, 18, 19, 47, 48, 40, 0, 4, 22, 7, 9, 10, 11, 13, 14, 15, 51, 52, 53, 0, 49, 29, 27, 6, 25, 5, 17, 16, 54, 55, 56, 0, 85, 0, 44, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 83, 71, 95, 96, 97, 86, 92, 93, 94, 87, 89, 90, 91, 98, 99, 0, 0, 0, 68, 69, 0, 0, 0, 0, 0, 0, 0, 88, 0, 84, 70, 0, 0, 74, 82, 75, 80, 79, 77, 81, 78, 73, 76, 0, 127, 129, 128, 0, 0, 0, 72, 
 0,0,0,0,0,0,0,0x65]
@@ -91,7 +117,7 @@ def hidcprocessing(hidcsock):
 				if event.type == 0:
 					continue
 
-				if event.type ==  ecodes.EV_KEY:
+				if event.type == ecodes.EV_KEY:
 					
 					if(event.code<272):
 						keyin = event.code
@@ -184,10 +210,9 @@ def hidcprocessing(hidcsock):
 
 
 
-
 cpuinfo = os.popen('grep Hardware /proc/cpuinfo')
 cpustr = cpuinfo.read()
-runonpi = 'BCM2835' in cpustr or 'BCM2711' in cpustr
+runonpi = 'BCM2835' in cpustr or 'BCM2711' in cpustr or 'BCM2712' in cpustr
 cpuinfo.close()
 
 if runonpi and not os.path.exists('edid.txt'):
@@ -256,17 +281,12 @@ if runonpi:
 if 'wfd_display_edid' in data and edidlen != 0:
 	msg = msg + 'wfd_display_edid: ' + '{:04X}'.format(int(edidlen/256 + 1)) + ' ' + str(edidbytes.hex())+'\r\n'
 
-# if 'microsoft_latency_management_capability' in data:
-# 	msg = msg + 'microsoft-latency-management-capability: supported\r\n'
-# if 'microsoft_format_change_capability' in data:
-# 	msg = msg + 'microsoft_format_change_capability: supported\r\n'
-
 if 'intel_friendly_name' in data:
-	msg = msg + 'intel_friendly_name: raspberrypi\r\n'
+	msg = msg + 'intel_friendly_name: '+display_instance+'\r\n'
 if 'intel_sink_manufacturer_name' in data:
 	msg = msg + 'intel_sink_manufacturer_name: lazycast\r\n'
 if 'intel_sink_model_name' in data:
-	msg = msg + 'intel_sink_model_name: lazycast\r\n'
+	msg = msg + 'intel_sink_model_name: lazycast-dual\r\n'
 if 'intel_sink_version' in data:
 	msg = msg + 'intel_sink_version: 25.4.13\r\n'
 if 'intel_sink_device_URL' in data:
@@ -323,7 +343,7 @@ if usehidc:
 	m1 = '1001003e2ab6010101003305010902a10185280901a1000509190129081500250195087501810205010930093109380a38021581257f750895048106c0c0'
 	m2 = '1001004c3ce2010001004105010906a1018529050719e029e71500250175019508810295017508810395057501050819012905910295017503910395067508150025650507190029658100c0'
 	m3 = '100100243ce20107010019050c0901a101852a19002aff00150026ff00950175108100c0'
-	m4 = '1001027a3ce2010301026f050d0904a1018513050d095495017508150025638102550c66011047ffff000027ffff00007510950109568102050d0922a102150025013500450055006500750195010942810209478102950481030600ff09109501750281027508050d095126630081027510550e651127ff7f00004640060948810209498102050109308102468403050109318102050d651447a08c000027a08c0000093f8102c0050d0922a102150025013500450055006500750195010942810209478102950481030600ff09109501750281027508050d095126630081027510550e651127ff7f00004640060948810209498102050109308102468403050109318102050d651447a08c000027a08c0000093f8102c0050d0922a102150025013500450055006500750195010942810209478102950481030600ff09109501750281027508050d095126630081027510550e651127ff7f00004640060948810209498102050109308102468403050109318102050d651447a08c000027a08c0000093f8102c0050d0922a102150025013500450055006500750195010942810209478102950481030600ff09109501750281027508050d095126630081027510550e651127ff7f00004640060948810209498102050109308102468403050109318102050d651447a08c000027a08c0000093f8102c0050d0922a102150025013500450055006500750195010942810209478102950481030600ff09109501750281027508050d095126630081027510550e651127ff7f00004640060948810209498102050109308102468403050109318102050d651447a08c000027a08c0000093f8102c0050d85120955950175101500266400b102c0'
+	m4 = '1001027a3ce2010301026f050d0904a1018513050d095495017508150025638102550c66011047ffff000027ffff00007510950109568102050d0922a102150025013500450055006500750195010942810209478102950481030600ff09109501750281027508050d095126630081027510550e651127ff7f00004640060948810209498102050109308102468403050109318102050d651447a08c000027a08c0000093f8102c0050d0922a102150025013500450055006500750195010942810209478102950481030600ff09109501750281027508050d095126630081027510550e651127ff7f00004640060948810209498102050109308102468403050109318102050d651447a08c000027a08c0000093f8102c0050d0922a102150025013500450055006500750195010942810209478102950481030600ff09109501750281027508050d095126630081027510550e651127ff7f00004640060948810209498102050109308102468403050109318102050d651447a08c000027a08c0000093f8102c0050d0922a102150025013500450055006500750195010942810209478102950481030600ff09109501750281027508050d095126630081027510550e651127ff7f00004640060948810209498102050109308102468403050109318102050d651447a08c000027a08c0000093f8102c0050d0922a102150025013500450055006500750195010942810209478102950481030600ff09109501750281027508050d095126630081027510550e651127ff7f00004640060948810209498102050109308102468403050109318102050d651447a08c000027a08c0000093f8102c0050d0922a102150025013500450055006500750195010942810209478102950481030600ff09109501750281027508050d095126630081027510550e651127ff7f00004640060948810209498102050109308102468403050109318102050d651447a08c000027a08c0000093f8102c0'
 	m5 = '1001000e3ce20103000003120a00'
 	m6 = '100100d0422801060100c4050d0902a1018514050d0920a10009420944093c094509321500250175019505810295038103050127ff7f000075109501550e6533093035004640068142093146840381426500050d093081020600ff09118102091281027520050609228102c0c0050d0902a1018515050d0920a10009420944093c094509321500250175019505810295038103050127ff7f000075109501550e6533093035004640068142093146840381426500050d093081020600ff09118102091281027520050609228102c0c000'
 
@@ -353,8 +373,6 @@ if usehidc:
 
 	t1 = threading.Thread(target=hidcprocessing, args=(hidcsock,))
 	t1.start()
-
-
 
 
 
@@ -408,7 +426,6 @@ sessionid=paralist[position]
 
 
 
-
 if not runonpi:
 	player_select = 0
 
@@ -417,10 +434,6 @@ def launchplayer(player_select):
 	if display_power_management == 1:
 		os.system('vcgencmd display_power 1')
 	if player_select == 0:
-		# os.system('gst-launch-1.0 -v udpsrc port=1028 ! application/x-rtp,media=video,encoding-name=H264 ! queue ! rtph264depay ! avdec_h264 ! autovideosink &')
-		# os.system('gst-launch-1.0 -v udpsrc port=1028 ! video/mpegts ! tsdemux !  h264parse ! queue ! avdec_h264 ! ximagesink sync=false &')
-		# os.system('gst-launch-1.0  -v  playbin   uri=udp://0.0.0.0:1028/wfd1.0/streamid=0  video-sink=ximagesink audio-sink=alsasink sync=false &')
-		# os.system('gst-launch-1.0  -v  playbin   uri=udp://0.0.0.0:1028/wfd1.0/streamid=0  video-sink=xvimagesink audio-sink=alsasink sync=false &')
 		if False: # Change False to True if you want to use gstreamer
 			os.system('gst-launch-1.0  -v  playbin   uri=udp://0.0.0.0:1028/wfd1.0/streamid=0  video-sink=autovideosink audio-sink=alsasink sync=false &')
 		else:
@@ -433,11 +446,6 @@ def launchplayer(player_select):
 		print('./h264/h264.bin '+str(idrsockport)+' '+str(sound_output_select)+' '+sinkip+' &')
 		os.system('./h264/h264.bin '+str(idrsockport)+' '+str(sound_output_select)+' '+sinkip+' &')
 	elif player_select == 3:
-		#if 'MSMiracastSource' in m2data:
-		#	os.system('omxplayer rtp://0.0.0.0:1028 -n -1 --live &') # For Windows 10 when no sound is playing
-		#else:
-		#	os.system('omxplayer rtp://0.0.0.0:1028 --live &')
-		#os.system('omxplayer rtp://0.0.0.0:1028 -i')
 		omxplayerinfo = subprocess.Popen('omxplayer rtp://0.0.0.0:1028 -i'.split(),stderr=subprocess.PIPE).communicate()
 		if '0 channels' in omxplayerinfo[1]:
 			os.system('omxplayer rtp://0.0.0.0:1028 -n -1 --live &') # For Windows 10 when no sound is playing
@@ -507,7 +515,7 @@ while True:
 					+'Content-Type: text/parameters\r\n'\
 					+'CSeq: '+str(csnum)+'\r\n\r\n'\
 					+msg
-	
+
 					print(idrreq)
 					sock.sendall(idrreq.encode())
 
@@ -551,4 +559,3 @@ if usehidc:
 			inputdev.ungrab()
 		except IOError:
 			print('already ungrabbed')
-		

@@ -5,3 +5,19 @@ udhcpd.conf
 uuid.txt
 edid.txt
 nohup.out
+
+# Instâncias do LazyCast
+lazycast_instance_display1/
+lazycast_instance_display2/
+
+# Arquivos de configuração local
+lazycast-config.conf
+
+# Logs
+*.log
+
+# Arquivos temporários adicionais
+udhcpd*.conf
+
+# Backup
+*.backup

@@ -1,5 +1,9 @@
 lazycast: A Simple Wireless Display Receiver
 
+## LazyCast Dual Display - Raspberry Pi 5 Support
+
+**NEW FEATURE**: LazyCast agora suporta modo dual display para Raspberry Pi 5, permitindo dois receptores independentes, um para cada saída HDMI (HDMI-1 e HDMI-2).
+
 # Description
 lazycast is a simple wifi display receiver. It was originally targeted Raspberry Pi (as display) and Windows 8.1/10 (as source), but it **might** also work on other Linux platforms and Miracast sources. (For other Linux systems, skip the preparation section. For video playback from Android sources, modify the ``player_select`` option in ``d2.py``.) For Windows 10 systems, the Miracast over Infrastructure (**MICE**) feature is also supported, which may provide better user experiences. In general, lazycast does not require re-compilation of wpa_supplicant to support various p2p functionalities, and should work on an "out of the box" Raspberry Pi.
 
@@ -49,9 +53,73 @@ make
 ```
 
 # Usage
+
+## Single Display Mode (Padrão)
 Run `./all.sh` to start lazycast receiver. Wait until the "The display is ready" message. The name of the display will appear after this message. Then, search for this name on the source device you want to cast. The default PIN number is ``31415926``. 
 
 It is recommended to stop casting by the controls on the source (e.g., the PC) side.
+
+## Dual Display Mode (Raspberry Pi 5)
+
+Para usar o modo dual display com duas saídas HDMI independentes:
+
+1. **Instalação e Configuração**:
+   ```bash
+   sudo ./install.sh
+   ```
+   
+   O instalador irá:
+   - Detectar automaticamente se é um Raspberry Pi 5
+   - Oferecer opção entre Single Display e Dual Display
+   - Configurar nomes diferentes para cada display
+   - Configurar PINs diferentes para cada display
+   - Configurar player e saída de áudio
+
+2. **Configuração HDMI**:
+   ```bash
+   sudo ./setup-hdmi.sh
+   ```
+   
+   Este script configura o sistema para suportar duas saídas HDMI independentes no Raspberry Pi 5.
+
+3. **Iniciar Dual Display**:
+   ```bash
+   ./all-dual.sh
+   ```
+   
+   Isso iniciará duas instâncias independentes do LazyCast:
+   - **Display 1**: Nome configurado (ex: raspberrypi-Display1) - HDMI-1
+   - **Display 2**: Nome configurado (ex: raspberrypi-Display2) - HDMI-2
+
+4. **Configuração Manual**:
+   
+   Edite o arquivo `lazycast-config.conf` para ajustar configurações:
+   ```bash
+   nano lazycast-config.conf
+   ```
+   
+   Principais configurações:
+   - `DISPLAY_MODE`: 1 para single, 2 para dual
+   - `DISPLAY1_NAME`: Nome do primeiro display
+   - `DISPLAY2_NAME`: Nome do segundo display
+   - `DISPLAY1_PIN`/`DISPLAY2_PIN`: PINs para cada display
+   - `DISPLAY1_IP`/`DISPLAY2_IP`: IPs das redes P2P
+   - `DISPLAY1_PLAYER_SELECT`/`DISPLAY2_PLAYER_SELECT`: Player para cada display
+
+### Características do Dual Display:
+
+- **Independência Total**: Cada display opera com sua própria conexão WiFi P2P
+- **Nomes Distintos**: Aparecem como dispositivos separados no dispositivo de origem
+- **Configurações Individuais**: Player, áudio e PIN podem ser diferentes para cada display
+- **Resolução Separada**: Cada display pode ter resolução diferente
+- **Simultaneidade**: Ambos os displays podem receber conteúdo simultaneamente
+
+### Requisitos:
+
+- Raspberry Pi 5 (recomendado para melhor performance)
+- Sistema operacional atualizado
+- Duas saídas HDMI conectadas
+- Suficiente largura de banda WiFi para duas conexões simultâneas
 
 # Tips
 Set the resolution on the source side. lazycast advertises all possible resolutions regardless of the current rendering resolution. Therefore, you may want to change the resolution (on the source) to match the actual resolution of the display connecting to Pi.  
