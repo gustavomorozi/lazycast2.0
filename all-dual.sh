@@ -145,6 +145,8 @@ start_display_instance() {
                 sudo wpa_cli -i"$p2pdevinterface" set device_name "$display_name"
                 sudo wpa_cli -i"$p2pdevinterface" set device_type 7-0050F204-1
                 sudo wpa_cli -i"$p2pdevinterface" set p2p_go_ht40 1
+                # [RPi5] Sem wifi_display=1 o IE WFD não vai nas respostas e a fonte não lista o receptor
+                sudo wpa_cli -i"$p2pdevinterface" set wifi_display 1
                 sudo wpa_cli -i"$p2pdevinterface" wfd_subelem_set 0 000600111c44012c
                 sudo wpa_cli -i"$p2pdevinterface" wfd_subelem_set 1 0006000000000000
                 sudo wpa_cli -i"$p2pdevinterface" wfd_subelem_set 6 000700000000000000

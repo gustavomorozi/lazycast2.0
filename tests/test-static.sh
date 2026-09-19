@@ -60,6 +60,8 @@ check "lib-p2p.sh pausa e retoma o NetworkManager" bash -c "grep -q 'killall -ST
 check "scripts chamam pause_networkmanager" bash -c "grep -q pause_networkmanager all.sh && grep -q pause_networkmanager all-dual.sh"
 check "serviço retoma o NetworkManager ao parar" grep -q "ExecStopPost=.*CONT NetworkManager" lazycast.service
 
+check "all.sh/all-dual.sh ligam wifi_display antes do wfd_subelem_set" bash -c "grep -q 'set wifi_display 1' all.sh && grep -q 'set wifi_display 1' all-dual.sh"
+
 # Serviço: ambiente de sessão presente (evita dbus-launch órfão)
 check "lazycast.service define XDG_RUNTIME_DIR e D-Bus" bash -c "grep -q XDG_RUNTIME_DIR lazycast.service && grep -q DBUS_SESSION_BUS_ADDRESS lazycast.service"
 check "background usa timeout no notify-send" grep -q 'timeout 5 notify-send' lazycast-background.sh
