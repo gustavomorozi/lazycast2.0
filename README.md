@@ -264,17 +264,6 @@ HDCP(proteção de conteúdo): Nem a chave nem o hardware estão disponíveis no
 
 <!-- Alguns dispositivos Windows 10 parecem desconectar logo após uma conexão ser estabelecida. Você pode tentar usar ``win10debug.sh`` em vez de ``all.sh`` e ver se ajuda. -->
 
-# Iniciar no Boot
-
-Adicione esta linha a ``/etc/xdg/lxsession/LXDE-pi/autostart``:
-```
-@lxterminal -l --working-directory=<caminho absoluto do lazycast> -e ./all.sh
-```
-Por exemplo, se lazycast está colocado sob ``~/`` (que é ``/home/pi/``, se seu nome de usuário é ``pi``), adicione a seguinte linha ao arquivo:
-```
-@lxterminal -l --working-directory=/home/pi/lazycast -e ./all.sh
-```
-
 # Miracast over Infrastructure
 
 Para fontes Windows 10, Miracast over Infrastructure (MICE) é um recurso que permite transmissão de dados de tela através de Ethernet ou redes WiFi seguras. A especificação do Miracast over Infrastructure (MICE) está disponível [aqui](https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-MICE/%5bMS-MICE%5d.pdf). Comparado com wifi p2p, permite conexão mais estável e menor latência. Embora MICE dependa quase inteiramente de Ethernet ou rede WiFi segura, na fase de descoberta de dispositivo, ainda requer um dispositivo wifi p2p para broadcast de beacon e frames de resposta de probe para a fonte. (No entanto, pode ser possível usar dois Pis para que um dos dois não precise ter hardware WiFi ou estar fisicamente próximo da fonte. Um Pi seria usado para transmitir o beacon enquanto o outro (que executa ``./project.py``) é usado para projetar. Para tal configuração funcionar, a variável ``hostname`` em ``mice.py`` deve ser definida para o hostname da máquina executando ``project.py``. No futuro, pode ser possível emular uma placa WiFi por HW/SW na fonte para que wifi p2p não seja necessário.)
