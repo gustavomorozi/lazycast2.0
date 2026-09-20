@@ -27,7 +27,11 @@ que as mostra na Tela 1 e na Tela 2 (ou na prévia do painel, se não houver mon
 - `ffmpeg` no PATH. Codificador automático: Intel QuickSync (`h264_qsv`), depois NVENC, depois `libx264`.
 - Fluxo: MPEG-TS sobre UDP, sem áudio, portas 5004 (tela virtual 1) e 5006 (tela virtual 2).
 - Latência: o Pi usa buffer de 300 ms (`LAZYCAST_STREAM_CACHING` no `lazycast-config.conf`).
-- Wi-Fi: se o PC e o Pi estiverem na mesma rede, funciona sem cabo; com Ethernet o caminho é o mesmo (só muda o IP).
+- **Cabo ou Wi-Fi (roteador):** funciona nos dois. O painel do Pi (Configurações > Fonte de cada tela) mostra o IP de
+  cada interface, por exemplo `Cabo 192.168.0.50 · Wi-Fi 192.168.0.43`. Use o IP da conexão que o PC também usa.
+  O script aceita os dois IPs e escolhe o primeiro que responde: `estender-tela.ps1 -Pi 192.168.0.50,192.168.0.43`.
+  Por cabo o vídeo tem mais folga: dá para usar `-Bitrate 12M`. Em Wi-Fi de 2,4 GHz prefira `-Fps 15` ou `-Bitrate 4M`.
+  Cabo direto PC↔Pi (sem roteador): configure IPs fixos nos dois lados, na mesma faixa (ex.: 10.0.0.1 e 10.0.0.2).
 - Logs: `estender-tela1.log` e `estender-tela2.log` nesta pasta.
 - Para desfazer: `estender-parar.bat` e desinstale o driver pelo "VDD Control". Uma cópia do
   `vdd_settings.xml` original fica em `vdd_settings.xml.lazycast-backup`.

@@ -418,8 +418,9 @@ class SettingsPage(Gtk.ScrolledWindow):
             cur = backend.screen_source(cfg, k)
             cur = 'auto' if backend.parse_source(cur)[0] == 'wireless' else cur
             combo.set_active(vals.index(cur) if cur in vals else 0)
-        ip = backend.pi_address()
-        self.pi_ip.set_text('IP deste Raspberry (informe ao Windows): %s' % (ip or 'não encontrado'))
+        addrs = backend.pi_addresses()
+        self.pi_ip.set_text('IP deste Raspberry (informe ao Windows): %s' %
+                            (' · '.join('%s %s' % a for a in addrs) if addrs else 'não encontrado'))
         self.loading = was
 
     def _sources_for_save(self):

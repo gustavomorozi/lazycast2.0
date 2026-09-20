@@ -38,10 +38,21 @@ if ($Parar) { Parar-Tudo; exit 0 }
 if (-not $Parar -and -not $Status -and -not $Pi) {
     if (Test-Path $ipFile) { $Pi = (Get-Content $ipFile -Raw).Trim() }
     if (-not $Pi) {
-        $Pi = (Read-Host 'IP do Raspberry Pi (aparece no painel LazyCast > Configurações > Fonte de cada tela)').Trim()
-        if ($Pi -notmatch '^\d{1,3}(\.\d{1,3}){3}$') { Write-Host 'IP inválido.'; exit 1 }
+        $Pi = (Read-Host 'IP do Raspberry Pi (painel LazyCast > Configurações; pode informar cabo e Wi-Fi separados por vírgula)').Trim()
+        if ($Pi -notmatch '^\d{1,3}(\.\d{1,3}){3}([,; ]+\d{1,3}(\.\d{1,3}){3})*$') { Write-Host 'IP inválido.'; exit 1 }
         Set-Content -Path $ipFile -Value $Pi
     }
+}
+# Aceita vários IPs separados por vírgula (cabo e Wi-Fi do Pi) e usa o primeiro que responde:
+# a tela estendida funciona igual por cabo Ethernet ou por roteador Wi-Fi.
+if ($Pi -match ',') {
+    $candidatos = @($Pi -split '[,; ]+' | Where-Object { $_ })
+    $Pi = $candidatos[0]
+    foreach ($c in $candidatos) { if (Test-Connection -ComputerName $c -Count 1 -Quiet -ErrorAction SilentlyContinue) { $Pi = $c; break } }
+    Write-Host "Usando o Pi em $Pi"
+}
+if (-not $Parar -and -not $Status -and $Pi -and -not (Test-Connection -ComputerName $Pi -Count 1 -Quiet -ErrorAction SilentlyContinue)) {
+    Write-Host "Aviso: o Pi ($Pi) não respondeu ao ping. Confira o IP no painel do Pi e se o PC está na mesma rede (cabo ou Wi-Fi)." -ForegroundColor Yellow
 }
 if ($Status) {
     if (Test-Path $pidFile) {

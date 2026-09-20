@@ -237,6 +237,22 @@ def pi_address():
     return next((i for i in ips if not i.startswith('192.168.173.') and not i.startswith('192.168.174.')), ips[0] if ips else '')
 
 
+def pi_addresses():
+    """[(rótulo, ip)] das interfaces do Pi na rede (cabo e Wi-Fi), sem as redes internas do Wi-Fi Direct.
+    O Windows pode enviar a tela estendida por qualquer uma delas."""
+    code, out = run(['ip', '-4', '-o', 'addr', 'show'])
+    found = []
+    for line in out.splitlines():
+        m = re.match(r'\d+:\s+(\S+)\s+inet\s+([0-9.]+)/', line)
+        if not m:
+            continue
+        iface, ip = m.groups()
+        if iface == 'lo' or iface.startswith('p2p-') or ip.startswith(('192.168.173.', '192.168.174.', '127.')):
+            continue
+        found.append(('Cabo' if iface.startswith(('eth', 'en')) else 'Wi-Fi', ip))
+    return sorted(found, key=lambda x: x[0] != 'Cabo')
+
+
 def stream_alive(port):
     """Fluxo de rede recebendo: quadro de prévia recente (ffmpeg, sem monitor) ou VLC tocando (com monitor)."""
     if latest_frame(snap_dir(), port):

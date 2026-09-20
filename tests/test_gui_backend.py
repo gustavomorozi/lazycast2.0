@@ -197,6 +197,15 @@ class SourceTests(unittest.TestCase):
         self.assertIn('usb:usb-Sumiu_Cap-video-index0', vals)           # a atual continua listada
         self.assertEqual(backend.source_options(1, dict(backend.DEFAULTS), [])[1][0], 'stream:5006')
 
+    def test_enderecos_do_pi_cabo_e_wifi(self):
+        ipout = '\n'.join([
+            '1: lo    inet 127.0.0.1/8 scope host lo',
+            '2: wlan0    inet 192.168.0.43/24 brd 192.168.0.255 scope global wlan0',
+            '3: eth0    inet 192.168.0.50/24 brd 192.168.0.255 scope global eth0',
+            '4: p2p-wlan0-5    inet 192.168.173.1/24 scope global p2p-wlan0-5'])
+        install_fake({'ip -4 -o addr show': (0, ipout)})
+        self.assertEqual(backend.pi_addresses(), [('Cabo', '192.168.0.50'), ('Wi-Fi', '192.168.0.43')])
+
     def test_telas_sem_fio_e_portas(self):
         cfg = dict(backend.DEFAULTS, SCREEN1_SOURCE='stream:5004')
         self.assertEqual(backend.wireless_screens(cfg, 2), [1])
