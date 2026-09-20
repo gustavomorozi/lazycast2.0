@@ -76,7 +76,7 @@ print_wifi_adapters
 if [ "$P2P_DEV_COUNT" -lt 2 ] && [ "${DUAL_STRATEGY:-auto}" != "independent" ]; then
     echo "Apenas $P2P_DEV_COUNT adaptador(es) Wi-Fi Direct: modo GRUPO COMPARTILHADO (experimental)."
     echo "  As duas fontes entram no mesmo Wi-Fi do Pi: a 1ª que conectar vai para o Display 1, a 2ª para o Display 2."
-    SHARED_SLOTS=2 exec ./all.sh
+    SHARED_SLOTS="${DISPLAY_MODE:-2}" exec ./all.sh
 fi
 if [ "$P2P_DEV_COUNT" -lt 2 ]; then
     echo "AVISO: apenas $P2P_DEV_COUNT adaptador(es) Wi-Fi com suporte a Wi-Fi Direct (P2P)."

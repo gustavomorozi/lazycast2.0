@@ -18,6 +18,8 @@ SERVICE = 'lazycast'
 
 DEFAULTS = {
     'DISPLAY_MODE': '1',
+    'SCREEN1_SOURCE': 'auto',
+    'SCREEN2_SOURCE': 'auto',
     'DISPLAY1_NAME': 'raspberry',
     'LAZYCAST_AUTH': 'pbc',
     'LAZYCAST_PIN': '',
@@ -158,14 +160,134 @@ def slot_ip(cfg, slot):
 
 
 def slot_streaming(port):
-    """Há VLC recebendo nesta porta RTP?"""
-    code, out = run(['pgrep', '-f', 'rtp://0.0.0.0:%s' % port])
+    """Há um receptor (VLC ou a prévia do ffmpeg) rodando neste canal?"""
+    # o canal de snapshot lc<porta>- aparece na linha de comando do VLC (Miracast/USB/rede) e do ffmpeg (prévia)
+    code, out = run(['pgrep', '-f', 'lc%s-' % port])
     return code == 0
+
+
+# ------------------------------------------------------------------ fontes de cada tela
+def screen_source(cfg, k):
+    """Fonte da tela k (0-based): auto|wireless, usb:<by-id> ou stream:<porta>."""
+    return (cfg.get('SCREEN%d_SOURCE' % (k + 1)) or 'auto').strip()
+
+
+def parse_source(src):
+    """-> ('wireless', None) | ('usb', id) | ('stream', porta). Valores inválidos viram sem fio."""
+    if src.startswith('usb:') and len(src) > 4:
+        return 'usb', src[4:]
+    m = re.fullmatch(r'stream:([0-9]{2,5})', src)
+    if m:
+        return 'stream', m.group(1)
+    return 'wireless', None
+
+
+def wireless_screens(cfg, n):
+    return [k for k in range(n) if parse_source(screen_source(cfg, k))[0] == 'wireless']
+
+
+def rtp_port(cfg, k):
+    """Porta que identifica o canal (snapshot lc<porta>-) da tela k."""
+    return cfg.get('DISPLAY%d_RTP_PORT' % (k + 1)) or str(1028 + 2 * k)
+
+
+def default_stream_port(k):
+    return 5004 + 2 * k
+
+
+def friendly_usb_name(byid):
+    """usb-MACROSILICON_USB_Video-video-index0 -> MACROSILICON USB Video"""
+    n = re.sub(r'^usb-', '', byid)
+    n = re.sub(r'-video-index\d+$', '', n)
+    n = re.sub(r'-\d+$', '', n)
+    return n.replace('_', ' ').strip() or byid
+
+
+def list_usb_video(base='/dev/v4l/by-id'):
+    """Entradas de vídeo USB (capturadoras UVC, webcams) em QUALQUER porta USB: [{id, name}]."""
+    try:
+        names = sorted(os.listdir(base))
+    except OSError:
+        return []
+    return [dict(id=n, name=friendly_usb_name(n)) for n in names if n.endswith('-video-index0')]
+
+
+def source_options(k, cfg=None, usb=None):
+    """Opções do seletor de fonte da tela k: [(valor, rótulo)]. Inclui a fonte atual mesmo se ausente."""
+    cfg = cfg or load_config()
+    usb = list_usb_video() if usb is None else usb
+    opts = [('auto', 'Sem fio (Miracast)'),
+            ('stream:%d' % default_stream_port(k), 'Tela estendida do Windows (rede, porta %d)' % default_stream_port(k))]
+    for u in usb:
+        opts.append(('usb:' + u['id'], 'Entrada USB: ' + u['name']))
+    cur = screen_source(cfg, k)
+    if cur not in [v for v, _ in opts]:
+        kind, val = parse_source(cur)
+        if kind == 'usb':
+            opts.append((cur, 'Entrada USB: %s (desconectada)' % friendly_usb_name(val)))
+        elif kind == 'stream':
+            opts.append((cur, 'Tela estendida do Windows (rede, porta %s)' % val))
+    return opts
+
+
+def pi_address():
+    """IP do Pi na rede (para informar ao Windows)."""
+    code, out = run(['hostname', '-I'])
+    ips = [i for i in out.split() if re.fullmatch(r'[0-9]{1,3}(\.[0-9]{1,3}){3}', i)]
+    return next((i for i in ips if not i.startswith('192.168.173.') and not i.startswith('192.168.174.')), ips[0] if ips else '')
+
+
+def pi_addresses():
+    """[(rótulo, ip)] das interfaces do Pi na rede (cabo e Wi-Fi), sem as redes internas do Wi-Fi Direct.
+    O Windows pode enviar a tela estendida por qualquer uma delas."""
+    code, out = run(['ip', '-4', '-o', 'addr', 'show'])
+    found = []
+    for line in out.splitlines():
+        m = re.match(r'\d+:\s+(\S+)\s+inet\s+([0-9.]+)/', line)
+        if not m:
+            continue
+        iface, ip = m.groups()
+        if iface == 'lo' or iface.startswith('p2p-') or ip.startswith(('192.168.173.', '192.168.174.', '127.')):
+            continue
+        found.append(('Cabo' if iface.startswith(('eth', 'en')) else 'Wi-Fi', ip))
+    return sorted(found, key=lambda x: x[0] != 'Cabo')
+
+
+def stream_alive(port):
+    """Fluxo de rede recebendo: quadro de prévia recente (ffmpeg, sem monitor) ou VLC tocando (com monitor)."""
+    if latest_frame(snap_dir(), port):
+        return True
+    return rc_is_playing(port)
+
+
+def rc_is_playing(port, directory=None):
+    import socket
+    sock_path = os.path.join(directory or snap_dir(), 'vlc-%s.sock' % port)
+    try:
+        s = socket.socket(socket.AF_UNIX)
+        s.settimeout(1.0)
+        s.connect(sock_path)
+        s.sendall(b'is_playing\n')
+        data = s.recv(200).decode(errors='replace')
+        s.close()
+        m = re.search(r'\b([01])\b', data)
+        return bool(m and m.group(1) == '1')
+    except (OSError, AttributeError):
+        return False
+
+
+def _blank_slot(k, kind, label, ip=''):
+    return dict(index=k, kind=kind, label=label, ip=ip, connected=False, streaming=False, source='')
 
 
 def get_status(cfg=None):
     cfg = cfg or load_config()
-    nscreens = 2 if cfg.get('DISPLAY_MODE') == '2' else 1
+    try:
+        nscreens = max(1, min(2, int(cfg.get('DISPLAY_MODE', '1'))))
+    except ValueError:
+        nscreens = 1
+    kinds = [parse_source(screen_source(cfg, k)) for k in range(nscreens)]
+    wl = wireless_screens(cfg, nscreens)
     st = {
         'service': service_state(),
         'name': cfg.get('DISPLAY1_NAME', 'raspberry'),
@@ -174,36 +296,53 @@ def get_status(cfg=None):
         'group': None,
         'stations': [],
         'slots': [],
+        'wired_only': len(wl) == 0,
     }
+
+    def slot_for(k, conns):
+        kind, val = kinds[k]
+        port = rtp_port(cfg, k)
+        if kind == 'usb':
+            present = os.path.exists('/dev/v4l/by-id/' + val)
+            s = _blank_slot(k, 'usb', 'Entrada USB: ' + friendly_usb_name(val))
+            s.update(connected=present, streaming=present and slot_streaming(port),
+                     source=friendly_usb_name(val) if present else '')
+            return s
+        if kind == 'stream':
+            alive = st['service'] == 'active' and stream_alive(port)
+            s = _blank_slot(k, 'stream', 'Tela estendida (rede, porta %s)' % val)
+            s.update(connected=alive, streaming=alive, source='Windows (rede)' if alive else '')
+            return s
+        j = wl.index(k)
+        ip = slot_ip(cfg, j)
+        who = next((c for c in conns if c['ip'] == ip), None)
+        s = _blank_slot(k, 'wireless', 'Sem fio (Miracast)', ip)
+        s.update(connected=who is not None, streaming=who is not None and slot_streaming(port),
+                 source=(who['host'] or who['mac']) if who else '')
+        return s
+
     if st['service'] != 'active':
         st['state'] = 'stopped' if st['service'] in ('inactive', 'unknown') else 'error'
-        st['slots'] = [dict(index=i, ip=slot_ip(cfg, i), connected=False, streaming=False, source='')
-                       for i in range(nscreens)]
+        st['slots'] = [slot_for(k, []) for k in range(nscreens)]
         return st
-    g = group_interface()
-    st['group'] = g
-    if not g:
-        st['state'] = 'starting'
-        st['slots'] = [dict(index=i, ip=slot_ip(cfg, i), connected=False, streaming=False, source='')
-                       for i in range(nscreens)]
-        return st
-    code, out = run(['iw', 'dev', g, 'station', 'dump'])
-    macs = parse_stations(out)
-    code, lout = sudo(['busybox', 'dumpleases', '-f', LEASES_PATH])
-    leases = parse_leases(lout)
     conns = []
-    for mac in macs:
-        ip, host = leases.get(mac.lower(), ('', ''))
-        conns.append(dict(mac=mac, ip=ip, host=host))
-    st['stations'] = conns
-    ports = [cfg.get('DISPLAY1_RTP_PORT', '1028'), cfg.get('DISPLAY2_RTP_PORT', '1030')]
-    for i in range(nscreens):
-        ip = slot_ip(cfg, i)
-        who = next((c for c in conns if c['ip'] == ip), None)
-        st['slots'].append(dict(index=i, ip=ip, connected=who is not None,
-                                streaming=slot_streaming(ports[i]),
-                                source=(who['host'] or who['mac']) if who else ''))
-    st['state'] = 'connected' if conns else 'ready'
+    if wl:
+        g = group_interface()
+        st['group'] = g
+        if not g:
+            st['state'] = 'starting'
+            st['slots'] = [slot_for(k, []) for k in range(nscreens)]
+            return st
+        code, out = run(['iw', 'dev', g, 'station', 'dump'])
+        macs = parse_stations(out)
+        code, lout = sudo(['busybox', 'dumpleases', '-f', LEASES_PATH])
+        leases = parse_leases(lout)
+        for mac in macs:
+            ip, host = leases.get(mac.lower(), ('', ''))
+            conns.append(dict(mac=mac, ip=ip, host=host))
+        st['stations'] = conns
+    st['slots'] = [slot_for(k, conns) for k in range(nscreens)]
+    st['state'] = 'connected' if (conns or any(s['connected'] and s['kind'] != 'wireless' for s in st['slots'])) else 'ready'
     return st
 
 
@@ -215,6 +354,22 @@ def health_checks(cfg=None):
     svc = service_state()
     checks.append(('Serviço LazyCast', svc == 'active',
                    'Parado. Use o botão Iniciar na aba Início.' if svc != 'active' else ''))
+    try:
+        nscreens = max(1, min(2, int(cfg.get('DISPLAY_MODE', '1'))))
+    except ValueError:
+        nscreens = 1
+    for k in range(nscreens):
+        kind, val = parse_source(screen_source(cfg, k))
+        if kind == 'usb':
+            ok = os.path.exists('/dev/v4l/by-id/' + val)
+            checks.append(('Tela %d: entrada USB (%s)' % (k + 1, friendly_usb_name(val)), ok,
+                           '' if ok else 'A capturadora não está conectada a nenhuma porta USB.'))
+        elif kind == 'stream':
+            ok = stream_alive(rtp_port(cfg, k))
+            checks.append(('Tela %d: fluxo de rede (porta %s)' % (k + 1, val), ok,
+                           '' if ok else 'Nada chegando. No Windows, rode estender-iniciar.bat (IP do Pi: %s).' % (pi_address() or '?')))
+    if not wireless_screens(cfg, nscreens):
+        return checks
     code, out = sudo(['wpa_cli', 'interface'])
     has_p2p = 'p2p-dev-' in out
     checks.append(('Wi-Fi Direct (P2P) disponível', has_p2p,
@@ -282,11 +437,28 @@ def latest_snapshot(directory, port):
     return data or None
 
 
+def latest_frame(directory, port, max_age=6.0):
+    """Quadro de prévia gravado pelo ffmpeg do Pi (lc<porta>-latest.jpg) se for recente; senão None.
+    Usado no modo sem monitor com fluxo de rede (o VLC sem janela não entrega snapshots de forma confiável)."""
+    import time
+    path = os.path.join(directory, 'lc%s-latest.jpg' % port)
+    try:
+        if time.time() - os.path.getmtime(path) > max_age:
+            return None
+        with open(path, 'rb') as f:
+            return f.read() or None
+    except OSError:
+        return None
+
+
 def request_snapshot(port, wait=1.2, directory=None):
     """Pede um snapshot ao VLC daquela porta (socket RC) e devolve os bytes JPEG, ou None."""
     import socket
     import time
     directory = directory or snap_dir()
+    frame = latest_frame(directory, port)
+    if frame:
+        return frame
     sock_path = os.path.join(directory, 'vlc-%s.sock' % port)
     try:
         s = socket.socket(socket.AF_UNIX)

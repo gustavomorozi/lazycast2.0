@@ -21,3 +21,5 @@ udhcpd*.conf
 
 # Backup
 *.backup
+__pycache__/
+*.pyc

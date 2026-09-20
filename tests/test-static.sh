@@ -70,7 +70,7 @@ check "PIN gerado tem 8 dígitos e checksum WPS válido" bash -c "source ./lib-p
 
 check "detecção de adaptadores (tests/test-adapters.sh)" bash tests/test-adapters.sh
 
-check "all.sh suporta grupo compartilhado (SHARED_SLOTS)" bash -c "grep -q SHARED_SLOTS all.sh && grep -q 'SHARED_SLOTS=2 exec ./all.sh' all-dual.sh"
+check "all.sh suporta grupo compartilhado (SHARED_SLOTS)" bash -c "grep -q SHARED_SLOTS all.sh && grep -q 'SHARED_SLOTS=.* exec ./all.sh' all-dual.sh"
 check "watch_dhcp_release libera quando qualquer aparelho sai" grep -q 'n" -lt "$prev"' lib-p2p.sh
 
 check "GUI: testes da camada de dados (tests/test_gui_backend.py)" bash -c "python3 tests/test_gui_backend.py || python tests/test_gui_backend.py"
@@ -80,6 +80,12 @@ check "GUI: compila" bash -c "python3 -m py_compile gui/lazycast-gui.py gui/back
 check "scripts definem o nome da rede (p2p_ssid_postfix)" bash -c "grep -q set_p2p_network_name all.sh && grep -q set_p2p_network_name all-dual.sh && grep -q 'p2p_ssid_postfix' lib-p2p.sh"
 
 check "sem monitor o VLC roda sem janela (--vout=dummy) e há notificação de tela conectada" bash -c "grep -q 'vout=dummy' d2.py && grep -q 'setup_vlc_output' all.sh && grep -q 'setup_vlc_output' all-dual.sh && grep -q \"notify('Tela\" d2.py"
+
+check "entrada com fio: wired-input.sh (usb:/stream:) ligado ao all.sh" bash -c "bash -n wired-input.sh && grep -q 'wired-input.sh' all.sh && grep -q 'usb:' wired-input.sh && grep -q 'stream:' wired-input.sh"
+
+check "sem janela (vout=dummy) o VLC não usa --no-mouse-events (quebra o snapshot)" bash -c "grep -q \"vlc_hidden else '--no-mouse-events'\" d2.py && grep -q 'mouse_args=()' wired-input.sh"
+
+check "prévia sem monitor por ffmpeg (fluxo de rede) e leitura pelo painel" bash -c "grep -q 'start_ffmpeg_preview' wired-input.sh && grep -q 'latest_frame' gui/backend.py"
 
 # Serviço: ambiente de sessão presente (evita dbus-launch órfão)
 check "lazycast.service define XDG_RUNTIME_DIR e D-Bus" bash -c "grep -q XDG_RUNTIME_DIR lazycast.service && grep -q DBUS_SESSION_BUS_ADDRESS lazycast.service"

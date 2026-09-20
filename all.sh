@@ -39,12 +39,12 @@ fi
 # entram nele; cada fonte recebe um IP (.80, .81) e uma instância do receptor com porta RTP e
 # tela próprias. A 1ª fonte que conectar vai para o Display 1 e a 2ª para o Display 2.
 slots=${SHARED_SLOTS:-1}
-rtp1=${DISPLAY1_RTP_PORT:-1028}; screen1=${DISPLAY1_SCREEN:-0}
-rtp2=${DISPLAY2_RTP_PORT:-1030}; screen2=${DISPLAY2_SCREEN:-1}
-if [ "$slots" -ge 2 ]; then
-    dhcp_end="${dhcp_start%.*}.$(( ${dhcp_start##*.} + slots - 1 ))"
-    ip2="${dhcp_start%.*}.$(( ${dhcp_start##*.} + 1 ))"
-fi
+[ "$slots" -gt 2 ] && slots=2   # 1 ou 2 telas
+# Telas sem fio (índices 0-based); as de fonte usb:/stream: (SCREENn_SOURCE) não usam o Wi-Fi Direct
+wl=($(wireless_screens "$slots"))
+nwl=${#wl[@]}
+wl_ip() { echo "${dhcp_start%.*}.$(( ${dhcp_start##*.} + $1 ))"; }   # IP da j-ésima tela sem fio (0-based)
+if [ "$nwl" -ge 1 ]; then dhcp_end="$(wl_ip $(( nwl - 1 )))"; fi
 
 LD_LIBRARY_PATH=/opt/vc/lib
 export LD_LIBRARY_PATH
@@ -56,8 +56,14 @@ done
 
 pause_networkmanager
 cleanup_orphan_p2p_ifaces
-slot2_pid=""
-trap 'kill $slot2_pid 2>/dev/null; [ -n "$ip2" ] && pkill -f "[d]2.py $ip2" 2>/dev/null; resume_networkmanager; exit 0' INT TERM HUP
+slot_pids=()
+stop_slots() {
+    local j
+    [ "${#slot_pids[@]}" -gt 0 ] && kill "${slot_pids[@]}" 2>/dev/null
+    pkill -f "[w]ired-input.sh" 2>/dev/null
+    for ((j = 1; j < nwl; j++)); do pkill -f "[d]2.py $(wl_ip $j)" 2>/dev/null; done
+}
+trap 'stop_slots; resume_networkmanager; exit 0' INT TERM HUP
 
 while :
 do
@@ -154,20 +160,34 @@ do
 	watch_dhcp_release "$p2pinterface" ./udhcpd.conf "$PWD/udhcpd.leases" &
 	echo "The display is ready"
 	echo "Your device is called: $display_name"
-	slot2_pid=""
+	slot_pids=()
 	setup_vlc_output "$slots"
-	if [ "$slots" -ge 2 ]; then
-		echo "Modo grupo compartilhado: Display 1 = $dhcp_start (tela $screen1), Display 2 = $ip2 (tela $screen2)"
+	# Entradas COM FIO (capturadora USB ou fluxo de rede): um laço por tela com fonte usb:/stream:
+	for ((k = 0; k < slots; k++)); do
+		src="$(screen_source $k)"
+		if is_wired_source "$src"; then
+			echo "  Tela $((k + 1)) = entrada com fio ($src)"
+			./wired-input.sh "$k" "$src" >/dev/null 2>&1 &
+			slot_pids+=($!)
+		fi
+	done
+	# Telas sem fio a partir da 2ª (a 1ª, wl[0], roda em primeiro plano mais abaixo)
+	for ((j = 1; j < nwl; j++)); do
+		k=${wl[$j]}; ip_s=$(wl_ip $j); rtp_s=$(screen_rtp $k)
+		echo "  Tela $((k + 1)) = sem fio em $ip_s (porta RTP $rtp_s)"
 		(
 			while [ -d "/sys/class/net/$p2pinterface" ]
 			do
-				LAZYCAST_NAME="$display_name" LAZYCAST_RTP_PORT="$rtp2" LAZYCAST_SCREEN="$screen2" 					LAZYCAST_VLC_ARGS="$DISPLAY2_VLC_ARGS" ./d2.py "$ip2"
+				LAZYCAST_NAME="$display_name" LAZYCAST_RTP_PORT="$rtp_s" LAZYCAST_SCREEN="$k" LAZYCAST_VLC_ARGS="$(screen_vlc_args $k)" ./d2.py "$ip_s"
 				sleep 1
 			done
 		) &
-		slot2_pid=$!
+		slot_pids+=($!)
+	done
+	if [ "$nwl" -ge 1 ]; then
+		fg_screen=${wl[0]}; fg_rtp=$(screen_rtp "$fg_screen"); fg_vlc_args="$(screen_vlc_args "$fg_screen")"
+		echo "  Tela $((fg_screen + 1)) = sem fio em $dhcp_start (porta RTP $fg_rtp)"
 	fi
-	slot1_vlc_args="$DISPLAY1_VLC_ARGS"
 	while :
 	do	
 		# Modificar configurações do d2.py dinamicamente
@@ -176,7 +196,11 @@ do
 			sed -i "s/^sound_output_select = .*/sound_output_select = $sound_output/" d2.py
 		fi
 		# [fix] d2.py anuncia o nome configurado (antes: 'raspberrypi' fixo)
-		LAZYCAST_NAME="$display_name" LAZYCAST_RTP_PORT="$rtp1" LAZYCAST_SCREEN="$screen1" LAZYCAST_VLC_ARGS="$slot1_vlc_args" ./d2.py "$dhcp_start"
+		if [ "$nwl" -ge 1 ]; then
+			LAZYCAST_NAME="$display_name" LAZYCAST_RTP_PORT="$fg_rtp" LAZYCAST_SCREEN="$fg_screen" LAZYCAST_VLC_ARGS="$fg_vlc_args" ./d2.py "$dhcp_start"
+		else
+			sleep 3   # todas as telas são com fio: nada a receber pelo Wi-Fi Direct
+		fi
 		if [ `sudo wpa_cli interface | grep -c "p2p-wl"` == 0 ] 
 		then
 			break

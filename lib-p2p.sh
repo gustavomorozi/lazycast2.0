@@ -308,3 +308,18 @@ setup_vlc_output() {
     if [ "$slots" -ge 2 ] && write_vlc_layout "$slots"; then export LAZYCAST_FULLSCREEN=0; fi
     return 0
 }
+
+#################################################################################
+# Fonte de cada tela (SCREEN1_SOURCE / SCREEN2_SOURCE no lazycast-config.conf):
+#   auto | wireless        recebe por Wi-Fi Direct (Miracast)
+#   usb:<nome em /dev/v4l/by-id>   capturadora HDMI->USB (UVC), em qualquer porta USB (wired-input.sh)
+#   stream:<porta UDP>     tela estendida enviada pela rede, ex.: ffmpeg no Windows (wired-input.sh)
+# As telas COM FIO não usam o Wi-Fi: as sem fio ficam com os IPs do DHCP em ordem (.80, .81).
+#################################################################################
+screen_source() { local v="SCREEN$(( $1 + 1 ))_SOURCE"; echo "${!v:-auto}"; }
+is_wired_source() { case "$1" in usb:?* | stream:[0-9]*) return 0 ;; *) return 1 ;; esac; }
+# índices (0-based) das telas sem fio entre as $1 telas
+wireless_screens() { local n="$1" k; for ((k = 0; k < n; k++)); do is_wired_source "$(screen_source "$k")" || echo "$k"; done; }
+# porta RTP (também identifica o canal de snapshot lc<porta>-) e argumentos extras do VLC da tela k
+screen_rtp() { local v="DISPLAY$(( $1 + 1 ))_RTP_PORT"; echo "${!v:-$(( 1028 + 2 * $1 ))}"; }
+screen_vlc_args() { local v="DISPLAY$(( $1 + 1 ))_VLC_ARGS"; echo "${!v}"; }

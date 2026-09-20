@@ -9,6 +9,7 @@ Receptor de display sem fio (Miracast / Wi-Fi Display) simples, com **suporte a 
 - [Compatibilidade](#compatibilidade)
 - [Requisitos](#requisitos)
 - [Instalação](#instalação)
+- [Estender a tela do Windows](#estender-a-tela-do-windows-telas-virtuais-pela-rede)
 - [Uso](#uso)
 - [Configuração](#configuração)
 - [Serviço systemd](#serviço-systemd)
@@ -58,6 +59,26 @@ O instalador cria o atalho **LazyCast** no menu de aplicativos do Raspberry Pi (
 - **Diagnóstico:** lista de verificações (serviço, Wi-Fi Direct, rede criada, anúncio Miracast, DHCP, receptor), o log e **Copiar relatório** para pedir ajuda.
 
 O painel usa `sudo -n` para controlar o serviço (o usuário padrão do Raspberry Pi OS já tem sudo sem senha).
+
+## Estender a tela do Windows (telas virtuais pela rede)
+
+Além do Miracast, o Windows pode enviar até **duas telas virtuais** (extensão da área de trabalho) ao Pi, por **Wi-Fi (roteador) ou cabo Ethernet**. Cada uma vira a Tela 1 e a Tela 2 do Pi. Os scripts ficam em [`windows/`](windows/LEIA-ME.md).
+
+**No Raspberry Pi**
+
+1. Painel LazyCast > Configurações > *Fonte de cada tela*: escolha **Tela estendida do Windows (rede, porta 5004)** na Tela 1 e **(porta 5006)** na Tela 2, com o modo *Duas telas*. Ou, no `lazycast-config.conf`: `SCREEN1_SOURCE="stream:5004"` e `SCREEN2_SOURCE="stream:5006"`.
+2. Anote o IP mostrado ali (cabo e Wi-Fi aparecem separados).
+
+**No Windows (uma vez)**
+
+1. Instale o **Virtual Display Driver** (projeto VirtualDrivers, driver assinado; instalador pede administrador, faça você mesmo) e o `ffmpeg` no PATH.
+2. Rode `windows\configurar-telas-virtuais.bat`: cria 2 monitores virtuais, estende a área de trabalho e fixa 1920x1080 a 60 Hz.
+
+**Para usar**
+
+- `windows\estender-iniciar.bat` (pergunta o IP do Pi na primeira vez) envia as duas telas; `windows\estender-parar.bat` encerra.
+- Cada tela virtual aparece à direita da principal: arraste janelas para lá. Sem monitor HDMI no Pi, acompanhe em **Ver telas**.
+- Ajustes: `-Fps 15` / `-Bitrate 4M` para PCs fracos ou Wi-Fi 2,4 GHz; `-Bitrate 12M` por cabo; `-Pi <IP cabo>,<IP Wi-Fi>` usa o primeiro que responder.
 
 ## Uso
 
@@ -115,6 +136,8 @@ O serviço roda como o usuário que executou o `sudo`, exporta o ambiente da ses
 ├── d2.py / d2-multi.py                               receptor RTSP/Miracast
 ├── lazycast-background.sh / lazycast.service         execução em background (systemd)
 ├── control/                                          UIBC (mouse/teclado) em C
+├── wired-input.sh / gui/                             entradas com fio (USB/rede) e painel GTK
+├── windows/                                          telas virtuais e envio ao Pi (Windows)
 ├── tests/ test-*.sh                                  testes sem hardware
 ├── docs/                                             guias adicionais
 └── mice.sh newmice.py project.py ...                 Miracast over Infrastructure e utilitários
