@@ -68,7 +68,10 @@ function Ligar([int]$n, [string]$ip, [scriptblock]$log) {
     # 1) garante N monitores no driver (só recarrega o driver se faltarem: recarregar derruba os que existem)
     & $log "Preparando $n tela(s) virtual(is)..."
     if (@(Get-TelasVirtuais).Count -lt $n) {
-        if (-not (Definir-Contagem $n)) { & $log 'Não consegui pedir os monitores ao driver.'; return $false }
+        # cada instância do driver cria N monitores: com 2 instâncias instaladas, contagem 1 já dá 2 telas
+        $inst = [Math]::Max(1, @(Get-PnpDevice -Class Display -ErrorAction SilentlyContinue | Where-Object { $_.FriendlyName -eq 'Virtual Display Driver' }).Count)
+        $porInst = [Math]::Ceiling($n / $inst)
+        if (-not (Definir-Contagem $porInst)) { & $log 'Não consegui pedir os monitores ao driver.'; return $false }
         for ($i = 0; $i -lt 25 -and @(Get-TelasVirtuais).Count -lt $n; $i++) { Start-Sleep -Milliseconds 800; if ($script:form) { [System.Windows.Forms.Application]::DoEvents() } }
     }
     if (@(Get-TelasVirtuais).Count -lt $n) { & $log 'O driver não criou os monitores. Reinicie o notebook e tente de novo.'; return $false }

@@ -68,35 +68,32 @@ function Desanexar-TelasVirtuais {
     return $n
 }
 
-# Anexa até $max monitores virtuais e deixa cada um em 1920x1080@60, lado a lado à direita da tela principal.
-# 1) Estender (SetDisplayConfig, como Win+P): único jeito que anexa monitor virtual novo/nunca usado;
-# 2) ChangeDisplaySettingsEx: posição e modo de cada monitor (e anexa monitores já conhecidos).
+# Anexa até $max monitores virtuais e deixa cada um em 1920x1080@60.
+# 1) Estender (SetDisplayConfig, como Win+P): único jeito confiável de anexar monitor virtual novo/nunca usado;
+#    o Windows os posiciona lado a lado à direita da tela principal.
+# 2) Modo: ChangeDisplaySettingsEx com flags 0 (mudança dinâmica). Com CDS_UPDATEREGISTRY / NORESET o driver recusa
+#    (código -1) e o Aplicar() chega a soltar as telas; com flags 0 funciona. Testado com o driver 25.7.23.
 function Anexar-TelasVirtuais([int]$max = 2, [int]$w = 1920, [int]$h = 1080, [int]$hz = 60) {
     function Ativas { @(Get-TelasVirtuais | Where-Object { $_.Anexado }).Count }
     $existem = @(Get-TelasVirtuais).Count
-    if ((Ativas) -lt [Math]::Min($max, $existem)) { [void][LcTV]::Estender(); Start-Sleep 3 }
-    $lista = @(Get-TelasVirtuais)
-    # posição X: logo depois da tela mais à direita que não é virtual
-    $x = 0
-    for ($i = 0; $i -lt 60; $i++) {
-        $d = New-Object LcTV+DISPLAY_DEVICE; $d.cb = [Runtime.InteropServices.Marshal]::SizeOf($d)
-        if (-not [LcTV]::EnumTop([uint32]$i, [ref]$d)) { break }
-        if (($d.StateFlags -band 1) -and $d.DeviceString -ne 'Virtual Display Driver') {
-            $m = Novo-DevMode
-            if ([LcTV]::EnumDisplaySettings($d.DeviceName, -1, [ref]$m)) { $x = [Math]::Max($x, $m.dmPositionX + $m.dmPelsWidth) }
-        }
+    if ((Ativas) -lt [Math]::Min($max, $existem)) {
+        [void][LcTV]::Estender()
+        for ($i = 0; $i -lt 8 -and (Ativas) -lt [Math]::Min($max, $existem); $i++) { Start-Sleep -Milliseconds 700 }
     }
-    $usar = @($lista | Select-Object -First $max)
-    foreach ($t in $usar) {
-        $dm = Novo-DevMode
-        $dm.dmFields = 0x20 -bor 0x80000 -bor 0x100000 -bor 0x400000
-        $dm.dmPositionX = $x; $dm.dmPositionY = 0; $dm.dmPelsWidth = $w; $dm.dmPelsHeight = $h; $dm.dmDisplayFrequency = $hz
-        $rc = [LcTV]::ChangeDisplaySettingsEx($t.Nome, [ref]$dm, [IntPtr]::Zero, (0x1 -bor 0x10000000), [IntPtr]::Zero)
-        if ($rc -ne 0 -and $t.Anexado) { Write-Host "Aviso: $($t.Nome) não aceitou ${w}x${h}@${hz} (código $rc)." }
-        $x += $w
+    # só as $max primeiras; a mais à direita primeiro, para aumentar o modo sem sobrepor a vizinha
+    $alvo = @(Get-TelasVirtuais | Where-Object { $_.Anexado } | Select-Object -First $max | ForEach-Object {
+        $m = Novo-DevMode; [void][LcTV]::EnumDisplaySettings($_.Nome, -1, [ref]$m)
+        [pscustomobject]@{ Nome = $_.Nome; X = $m.dmPositionX; W = $m.dmPelsWidth; H = $m.dmPelsHeight; Hz = $m.dmDisplayFrequency }
+    } | Sort-Object X -Descending)
+    foreach ($t in $alvo) {
+        if ($t.W -eq $w -and $t.H -eq $h -and $t.Hz -eq $hz) { continue }
+        $dm = Novo-DevMode; [void][LcTV]::EnumDisplaySettings($t.Nome, -1, [ref]$dm)
+        $dm.dmPelsWidth = $w; $dm.dmPelsHeight = $h; $dm.dmDisplayFrequency = $hz
+        $dm.dmFields = 0x80000 -bor 0x100000 -bor 0x400000
+        $rc = [LcTV]::ChangeDisplaySettingsEx($t.Nome, [ref]$dm, [IntPtr]::Zero, 0, [IntPtr]::Zero)
+        if ($rc -ne 0) { Write-Host "Aviso: $($t.Nome) não aceitou ${w}x${h}@${hz} (código $rc)." }
+        Start-Sleep -Milliseconds 800
     }
-    [void][LcTV]::Aplicar()
-    Start-Sleep 3
     return (Ativas)
 }
 
