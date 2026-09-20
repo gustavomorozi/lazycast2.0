@@ -270,6 +270,14 @@ function Atualizar {
     $btnDesinst.Visible = $di
     $btnLigar.Enabled = $di
     $btnDesligar.Enabled = ($t -gt 0 -or $e -gt 0)
+    # Enviando, mas as telas virtuais saíram da área de trabalho (o Windows às vezes as solta): o vídeo congelaria.
+    if ($t -gt 0 -and $e -lt $t -and -not $script:reanexando) {
+        $script:reanexando = $true
+        & $logFn 'As telas virtuais saíram da área de trabalho; reanexando...'
+        $e = Anexar-TelasVirtuais $t
+        & $logFn "Telas virtuais ativas: $e."
+        $script:reanexando = $false
+    }
     $lblEstado.Text = "Enviando: $t fluxo(s)   |   Telas virtuais ativas: $e"
 }
 function Ocupado($sim) {
