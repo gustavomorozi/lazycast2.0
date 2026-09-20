@@ -4,7 +4,7 @@
 # Usa os scripts desta pasta (configurar-telas-virtuais.ps1, estender-tela.ps1). Não precisa de administrador.
 #
 # Sem janela (para testes/automação): LazyCast-Windows.ps1 -Acao ligar|desligar|status|driver-status [-Telas 2] [-Pi IP[,IP]]
-param([ValidateSet('', 'ligar', 'desligar', 'status', 'driver-status', 'baixar-driver')][string]$Acao = '', [int]$Telas = 2, [string]$Pi = '', [switch]$Remover, [string]$ZipLocal = '')
+param([ValidateSet('', 'ligar', 'desligar', 'status', 'driver-status', 'baixar-driver', 'preparar-driver')][string]$Acao = '', [int]$Telas = 2, [string]$Pi = '', [switch]$Remover, [string]$ZipLocal = '')
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $pasta = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -23,13 +23,14 @@ function Rodar([string]$script, [string[]]$args2, [int]$timeoutSeg = 120) {
     $a = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $pasta $script)) + $args2
     $linha = ($a | ForEach-Object { '"' + ("$_" -replace '"', '') + '"' }) -join ' '
     $p = Start-Process -FilePath $ps -ArgumentList $linha -WindowStyle Hidden -PassThru -RedirectStandardOutput $saida
+    $null = $p.Handle      # sem isso o PowerShell 5.1 devolve ExitCode vazio depois que o processo termina
     $fim = (Get-Date).AddSeconds($timeoutSeg)
     while (-not $p.HasExited -and (Get-Date) -lt $fim) {
         Start-Sleep -Milliseconds 200
         if ($script:form) { [System.Windows.Forms.Application]::DoEvents() }
     }
     if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue; $script:ultimoExit = -1 }
-    else { $script:ultimoExit = $p.ExitCode }
+    else { $p.WaitForExit(); $script:ultimoExit = [int]$p.ExitCode }
     $txt = (Get-Content $saida -Raw -Encoding UTF8 -ErrorAction SilentlyContinue)
     Remove-Item $saida -Force -ErrorAction SilentlyContinue
     return "$txt".Trim()
@@ -143,16 +144,24 @@ function Baixar-Driver([string]$zipLocal) {
     Write-Host $exe
 }
 
+# Baixa, verifica e extrai o driver; devolve o caminho do VDD Control.exe ou $null (sem abrir nada).
+function Preparar-Driver([scriptblock]$log) {
+    $o = Rodar 'LazyCast-Windows.ps1' @('-Acao', 'baixar-driver') 900
+    $linhas = @($o -split "`r?`n" | Where-Object { $_ })
+    $linhas | Select-Object -Last 2 | ForEach-Object { & $log $_ }
+    $exe = Join-Path $drvPasta 'VDD\VDD Control.exe'          # caminho remontado aqui, não lido da saída do filho
+    if ($script:ultimoExit -ne 0) { & $log "Falha ao preparar o driver (código de saída $($script:ultimoExit))."; return $null }
+    if (-not (Test-Path -LiteralPath $exe)) { & $log 'Falha ao preparar o driver: VDD Control.exe não foi extraído.'; return $null }
+    return $exe
+}
+
 function Instalar-Driver([scriptblock]$log) {
     if (Driver-Instalado -Forcar) { & $log 'O driver já está instalado.'; return }
     $r = [System.Windows.Forms.MessageBox]::Show("Vou baixar o Virtual Display Driver (68 MB) do GitHub oficial do projeto VirtualDrivers, versão 25.7.23, e conferir o SHA-256 antes de abrir.`n`nEm seguida o Windows vai pedir permissão de administrador para o instalador do driver. Continuar?", 'Instalar driver', 'YesNo', 'Question')
     if ($r -ne 'Yes') { & $log 'Instalação cancelada.'; return }
     & $log 'Baixando e verificando o driver (pode levar alguns minutos)...'
-    $o = Rodar 'LazyCast-Windows.ps1' @('-Acao', 'baixar-driver') 900
-    $linhas = @($o -split "`r?`n" | Where-Object { $_ })
-    $linhas | Select-Object -Last 2 | ForEach-Object { & $log $_ }
-    $exe = Join-Path $drvPasta 'VDD\VDD Control.exe'          # caminho remontado aqui, não lido da saída do filho
-    if ($script:ultimoExit -ne 0 -or -not (Test-Path -LiteralPath $exe)) { & $log 'Não foi possível preparar o driver.'; return }
+    $exe = Preparar-Driver $log
+    if (-not $exe) { return }
     & $log 'Abrindo o instalador (confirme o pedido de administrador do Windows)...'
     try { Start-Process -FilePath $exe -Verb RunAs } catch { & $log 'Pedido de administrador negado ou cancelado.'; return }
     & $log 'No programa que abriu, instale o driver. Depois volte aqui: o estado do driver atualiza sozinho.'
@@ -193,6 +202,7 @@ if ($Acao) {
         'desligar' { Desligar $log ([bool]$Remover) }
         'driver-status' { if (Driver-Instalado) { 'Driver: instalado' } else { 'Driver: não instalado' } }
         'baixar-driver' { Baixar-Driver $ZipLocal }
+        'preparar-driver' { $x = Preparar-Driver $log; if ($x) { "pronto: $x" } else { exit 1 } }
         'status'   { "Enviando: $(Transmitindo) fluxo(s); telas virtuais ativas: $(Telas-Extras)" }
     }
     exit 0
