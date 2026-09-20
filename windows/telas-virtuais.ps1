@@ -29,6 +29,9 @@ public static class LcTV {
   [DllImport("user32.dll", CharSet=CharSet.Ansi)] public static extern int ChangeDisplaySettingsEx(string dev, IntPtr dm, IntPtr hwnd, int flags, IntPtr lp);
   // O PowerShell converte $null em "" ao chamar a API; estes atalhos passam null de verdade.
   public static bool EnumTop(uint i, ref DISPLAY_DEVICE d) { return EnumDisplayDevices(null, i, ref d, 0); }
+  [DllImport("user32.dll")] public static extern int SetDisplayConfig(uint n, IntPtr paths, uint m, IntPtr modes, uint flags);
+  // Equivale a Win+P > Estender (SDC_APPLY | SDC_TOPOLOGY_EXTEND): é o que anexa monitores virtuais recém-criados.
+  public static int Estender() { return SetDisplayConfig(0, IntPtr.Zero, 0, IntPtr.Zero, 0x84); }
   public static int Aplicar() { return ChangeDisplaySettingsEx(null, IntPtr.Zero, IntPtr.Zero, 0, IntPtr.Zero); }
 }
 "@
@@ -65,32 +68,36 @@ function Desanexar-TelasVirtuais {
     return $n
 }
 
-# Anexa até $max monitores virtuais, lado a lado à direita da última tela, em 1920x1080@60.
+# Anexa até $max monitores virtuais e deixa cada um em 1920x1080@60, lado a lado à direita da tela principal.
+# 1) Estender (SetDisplayConfig, como Win+P): único jeito que anexa monitor virtual novo/nunca usado;
+# 2) ChangeDisplaySettingsEx: posição e modo de cada monitor (e anexa monitores já conhecidos).
 function Anexar-TelasVirtuais([int]$max = 2, [int]$w = 1920, [int]$h = 1080, [int]$hz = 60) {
+    function Ativas { @(Get-TelasVirtuais | Where-Object { $_.Anexado }).Count }
+    $existem = @(Get-TelasVirtuais).Count
+    if ((Ativas) -lt [Math]::Min($max, $existem)) { [void][LcTV]::Estender(); Start-Sleep 3 }
     $lista = @(Get-TelasVirtuais)
-    $ativas = @($lista | Where-Object { $_.Anexado }).Count
-    if ($ativas -ge $max) { return $ativas }
-    # posição X: logo depois da tela mais à direita já anexada
+    # posição X: logo depois da tela mais à direita que não é virtual
     $x = 0
     for ($i = 0; $i -lt 60; $i++) {
         $d = New-Object LcTV+DISPLAY_DEVICE; $d.cb = [Runtime.InteropServices.Marshal]::SizeOf($d)
         if (-not [LcTV]::EnumTop([uint32]$i, [ref]$d)) { break }
-        if ($d.StateFlags -band 1) {
+        if (($d.StateFlags -band 1) -and $d.DeviceString -ne 'Virtual Display Driver') {
             $m = Novo-DevMode
             if ([LcTV]::EnumDisplaySettings($d.DeviceName, -1, [ref]$m)) { $x = [Math]::Max($x, $m.dmPositionX + $m.dmPelsWidth) }
         }
     }
-    foreach ($t in ($lista | Where-Object { -not $_.Anexado } | Select-Object -First ($max - $ativas))) {
+    $usar = @($lista | Select-Object -First $max)
+    foreach ($t in $usar) {
         $dm = Novo-DevMode
         $dm.dmFields = 0x20 -bor 0x80000 -bor 0x100000 -bor 0x400000
         $dm.dmPositionX = $x; $dm.dmPositionY = 0; $dm.dmPelsWidth = $w; $dm.dmPelsHeight = $h; $dm.dmDisplayFrequency = $hz
         $rc = [LcTV]::ChangeDisplaySettingsEx($t.Nome, [ref]$dm, [IntPtr]::Zero, (0x1 -bor 0x10000000), [IntPtr]::Zero)
-        if ($rc -ne 0) { Write-Host "Aviso: $($t.Nome) não aceitou ${w}x${h}@${hz} (código $rc)." }
+        if ($rc -ne 0 -and $t.Anexado) { Write-Host "Aviso: $($t.Nome) não aceitou ${w}x${h}@${hz} (código $rc)." }
         $x += $w
     }
     [void][LcTV]::Aplicar()
     Start-Sleep 3
-    return @(Get-TelasVirtuais | Where-Object { $_.Anexado }).Count
+    return (Ativas)
 }
 
 if ($MyInvocation.InvocationName -ne '.') {
