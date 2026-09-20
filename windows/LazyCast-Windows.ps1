@@ -11,6 +11,7 @@ $pasta = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ipFile = Join-Path $pasta 'pi-ip.txt'
 $nomeFile = Join-Path $pasta 'miracast-nome.txt'
 $cfgVdd = 'C:\VirtualDisplayDriver\vdd_settings.xml'
+. (Join-Path $pasta 'telas-virtuais.ps1')     # Get/Anexar/Desanexar-TelasVirtuais
 $ps = "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe"
 
 function Ler($f) { if (Test-Path $f) { (Get-Content $f -Raw).Trim() } else { '' } }
@@ -63,13 +64,17 @@ function Ligar([int]$n, [string]$ip, [scriptblock]$log) {
     if ($ip -notmatch '^\d{1,3}(\.\d{1,3}){3}([,; ]+\d{1,3}(\.\d{1,3}){3})*$') { & $log 'IP inválido. Use, por exemplo, 192.168.0.43 (cabo e Wi-Fi separados por vírgula).'; return $false }
     $ip = ($ip -split '[,; ]+' | Where-Object { $_ }) -join ','
     Set-Content -Path $ipFile -Value $ip
-    & $log "Criando $n tela(s) virtual(is)..."
-    $o = Rodar 'configurar-telas-virtuais.ps1' @('-Telas', "$n") 90
-    $o -split "`r?`n" | Where-Object { $_ -match '-> ok|Pronto|Nenhuma|não apare' } | ForEach-Object { & $log $_ }
-    if ((Telas-Extras) -lt $n) {
-        Start-Process "$env:WINDIR\System32\DisplaySwitch.exe" -ArgumentList '/extend' -Wait; Start-Sleep 3     # reativa telas desativadas
+    # 1) garante N monitores no driver (só recarrega o driver se faltarem: recarregar derruba os que existem)
+    & $log "Preparando $n tela(s) virtual(is)..."
+    if (@(Get-TelasVirtuais).Count -lt $n) {
+        if (-not (Definir-Contagem $n)) { & $log 'Não consegui pedir os monitores ao driver.'; return $false }
+        for ($i = 0; $i -lt 25 -and @(Get-TelasVirtuais).Count -lt $n; $i++) { Start-Sleep -Milliseconds 800; if ($script:form) { [System.Windows.Forms.Application]::DoEvents() } }
     }
-    if ((Telas-Extras) -lt $n) { & $log 'As telas virtuais não apareceram. Reinicie o notebook e tente de novo.'; return $false }
+    if (@(Get-TelasVirtuais).Count -lt $n) { & $log 'O driver não criou os monitores. Reinicie o notebook e tente de novo.'; return $false }
+    # 2) coloca na área de trabalho, 1920x1080 a 60 Hz
+    $ativas = Anexar-TelasVirtuais $n
+    if ($ativas -lt $n) { & $log 'As telas virtuais não entraram na área de trabalho. Tente Win+P > Estender.'; return $false }
+    & $log "$ativas tela(s) virtual(is) ativa(s)."
     & $log "Enviando ao Pi ($ip)..."
     $o = Rodar 'estender-tela.ps1' @('-Iniciar', '-Pi', $ip, '-Telas', "$n") 40
     $o -split "`r?`n" | Where-Object { $_ } | Select-Object -Last 3 | ForEach-Object { & $log $_ }
@@ -87,11 +92,11 @@ function Desligar([scriptblock]$log, [bool]$remover = $false) {
     if ($remover) {
         & $log 'Removendo os monitores virtuais do driver (para voltar, reinicie o notebook)...'
         if (-not (Definir-Contagem 0)) { & $log 'Não consegui recarregar o driver; reinicie o notebook para remover as telas.' }
+        Start-Sleep 3
     } else {
         & $log 'Desativando as telas virtuais...'
+        [void](Desanexar-TelasVirtuais)
     }
-    Start-Process "$env:WINDIR\System32\DisplaySwitch.exe" -ArgumentList '/internal' -Wait
-    Start-Sleep 3
     & $log "Pronto. Telas extras ativas: $(Telas-Extras)."
 }
 
@@ -195,55 +200,77 @@ Add-Type -AssemblyName System.Drawing
 
 $script:form = New-Object System.Windows.Forms.Form
 $f = $script:form
-$f.Text = 'LazyCast para Windows'; $f.StartPosition = 'CenterScreen'; $f.Size = New-Object System.Drawing.Size(520, 470)
+$f.Text = 'LazyCast para Windows'; $f.StartPosition = 'CenterScreen'; $f.ClientSize = New-Object System.Drawing.Size(540, 600)
 $f.FormBorderStyle = 'FixedDialog'; $f.MaximizeBox = $false; $f.Font = New-Object System.Drawing.Font('Segoe UI', 10)
 
-function Novo($tipo, $x, $y, $w, $h, $texto) {
+$verde = [System.Drawing.Color]::FromArgb(30, 130, 60); $vermelho = [System.Drawing.Color]::FromArgb(190, 40, 40)
+$cinza = [System.Drawing.Color]::FromArgb(100, 100, 100)
+
+function Novo($tipo, $x, $y, $w, $h, $texto, $pai) {
     $c = New-Object "System.Windows.Forms.$tipo"
     $c.Location = New-Object System.Drawing.Point($x, $y); $c.Size = New-Object System.Drawing.Size($w, $h)
     if ($texto) { $c.Text = $texto }
-    $f.Controls.Add($c); return $c
+    if (-not $pai) { $pai = $f }
+    $pai.Controls.Add($c); return $c
 }
+function Grupo($titulo, $y, $h) {
+    $g = Novo 'GroupBox' 16 $y 508 $h $titulo
+    $g.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 10)
+    return $g
+}
+function Normal($c, $tam = 9.5) { $c.Font = New-Object System.Drawing.Font('Segoe UI', $tam) }
 
-[void](Novo 'Label' 20 15 470 22 'Tela estendida para o Raspberry Pi (cabo ou Wi-Fi)')
-$f.Controls[0].Font = New-Object System.Drawing.Font('Segoe UI Semibold', 11)
-[void](Novo 'Label' 20 48 200 22 'IP do Pi (cabo, Wi-Fi):')
-$txtIp = Novo 'TextBox' 20 72 300 26 (Ler $ipFile)
-[void](Novo 'Label' 335 48 120 22 'Telas virtuais:')
-$cmbN = Novo 'ComboBox' 335 72 60 26 ''
+# ---- 1. Driver (no topo: é o pré-requisito de tudo)
+$g1 = Grupo '1. Driver do monitor virtual' 12 82
+$lblDriver = Novo 'Label' 16 28 270 24 '' $g1
+$lblDriver.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 11)
+$lblDriverInfo = Novo 'Label' 16 54 300 20 '' $g1
+Normal $lblDriverInfo 9; $lblDriverInfo.ForeColor = $cinza
+$btnDriver = Novo 'Button' 330 26 166 34 'Instalar driver' $g1
+$btnDesinst = Novo 'Button' 330 26 166 34 'Desinstalar driver' $g1
+Normal $btnDriver; Normal $btnDesinst
+
+# ---- 2. Tela estendida
+$g2 = Grupo '2. Tela estendida para o Raspberry Pi (cabo ou Wi-Fi)' 104 178
+$l = Novo 'Label' 16 30 300 20 'IP do Pi (cabo e/ou Wi-Fi, separados por vírgula)' $g2; Normal $l 9
+$txtIp = Novo 'TextBox' 16 52 350 26 (Ler $ipFile) $g2; Normal $txtIp
+$l = Novo 'Label' 384 30 110 20 'Telas virtuais' $g2; Normal $l 9
+$cmbN = Novo 'ComboBox' 384 52 112 26 '' $g2; Normal $cmbN
 $cmbN.DropDownStyle = 'DropDownList'; [void]$cmbN.Items.AddRange(@('1', '2')); $cmbN.SelectedItem = '2'
-$chkRem = Novo 'CheckBox' 20 156 470 22 'Ao desligar, remover também os monitores do driver (só voltam após reiniciar)'
-$chkRem.Font = New-Object System.Drawing.Font('Segoe UI', 8.5)
-$btnDriver = Novo 'Button' 335 182 155 26 'Instalar driver'
-$lblDriver = Novo 'Label' 335 212 155 20 'Driver já instalado'
-$btnDesinst = Novo 'Button' 335 182 155 26 'Desinstalar driver'
-$btnDesinst.Font = New-Object System.Drawing.Font('Segoe UI', 9)
-$btnDesinst.Visible = $false
-$lblDriver.ForeColor = [System.Drawing.Color]::FromArgb(30, 130, 60); $lblDriver.Visible = $false
-$btnDriver.Font = New-Object System.Drawing.Font('Segoe UI', 9)
-$btnLigar = Novo 'Button' 20 112 230 40 'Ligar tela virtual'
-$btnDesligar = Novo 'Button' 260 112 230 40 'Desligar'
+$btnLigar = Novo 'Button' 16 92 236 40 'Ligar tela virtual' $g2; Normal $btnLigar 10.5
+$btnDesligar = Novo 'Button' 260 92 236 40 'Desligar' $g2; Normal $btnDesligar 10.5
+$chkRem = Novo 'CheckBox' 16 144 480 22 'Ao desligar, remover também os monitores do driver (só voltam após reiniciar)' $g2
+Normal $chkRem 8.5
 
-$lbl2 = Novo 'Label' 20 185 470 22 'Miracast (Transmitir do Windows)'
-$lbl2.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 11)
-[void](Novo 'Label' 20 215 200 22 'Nome do receptor no Pi:')
-$txtNome = Novo 'TextBox' 20 239 300 26 (Ler $nomeFile)
-$btnMira = Novo 'Button' 335 235 155 34 'Conectar por Miracast'
+# ---- 3. Miracast
+$g3 = Grupo '3. Miracast (Transmitir do Windows)' 294 92
+$l = Novo 'Label' 16 30 300 20 'Nome do receptor no Pi (ex.: LazyCast-Gecko)' $g3; Normal $l 9
+$txtNome = Novo 'TextBox' 16 52 350 26 (Ler $nomeFile) $g3; Normal $txtNome
+$btnMira = Novo 'Button' 384 48 112 34 'Conectar' $g3; Normal $btnMira
 
-$lblEstado = Novo 'Label' 20 285 470 24 ''
-$txtLog = Novo 'TextBox' 20 315 470 100 ''
+# ---- estado e log
+$lblEstado = Novo 'Label' 16 396 508 22 ''
+Normal $lblEstado 9; $lblEstado.ForeColor = $cinza
+$txtLog = Novo 'TextBox' 16 422 508 162 ''
 $txtLog.Multiline = $true; $txtLog.ReadOnly = $true; $txtLog.ScrollBars = 'Vertical'; $txtLog.BackColor = [System.Drawing.Color]::White
+$txtLog.Font = New-Object System.Drawing.Font('Consolas', 9)
 
 $logFn = { param($m) $txtLog.AppendText("$m`r`n"); [System.Windows.Forms.Application]::DoEvents() }
 function Atualizar {
     $t = Transmitindo; $e = Telas-Extras
     $di = Driver-Instalado
-    $lblEstado.Text = "Enviando: $t fluxo(s)  |  Telas virtuais: $e  |  Driver: $(if ($di) { 'instalado' } else { 'NÃO instalado' })"
-    $btnDriver.Visible = -not $di       # já instalado: esconde o botão e mostra o aviso
-    $lblDriver.Visible = $di
+    if ($di) {
+        $lblDriver.Text = '● Driver já instalado'; $lblDriver.ForeColor = $verde
+        $lblDriverInfo.Text = 'Virtual Display Driver (VirtualDrivers)'
+    } else {
+        $lblDriver.Text = '● Driver não instalado'; $lblDriver.ForeColor = $vermelho
+        $lblDriverInfo.Text = 'Necessário para criar as telas virtuais.'
+    }
+    $btnDriver.Visible = -not $di       # já instalado: esconde "Instalar" e mostra "Desinstalar"
     $btnDesinst.Visible = $di
     $btnLigar.Enabled = $di
     $btnDesligar.Enabled = ($t -gt 0 -or $e -gt 0)
+    $lblEstado.Text = "Enviando: $t fluxo(s)   |   Telas virtuais ativas: $e"
 }
 function Ocupado($sim) {
     $f.UseWaitCursor = $sim

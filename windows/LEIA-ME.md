@@ -8,7 +8,7 @@ que as mostra na Tela 1 e na Tela 2 (ou na prévia do painel, se não houver mon
 Dê dois cliques em `LazyCast.bat`. Na janela:
 
 - **Ligar tela virtual:** cria 1 ou 2 telas virtuais, estende a área de trabalho e envia ao Pi (IP do Pi: cabo e/ou Wi-Fi, separados por vírgula).
-- **Desligar:** para o envio e desativa as telas (Win+P, somente tela do PC). Com a caixa marcada, zera também os monitores do driver; nesse caso o driver só os recria depois de reiniciar o notebook.
+- **Desligar:** para o envio e solta as telas virtuais da área de trabalho (os monitores continuam no driver; "Ligar" as traz de volta). Com a caixa marcada, zera também os monitores do driver; nesse caso o driver só os recria depois de reiniciar o notebook.
 - **Instalar driver:** baixa o Virtual Display Driver 25.7.23 do GitHub oficial, confere o SHA-256 e abre o instalador; o Windows pede a sua permissão de administrador. Se o driver já estiver instalado, o botão some e aparece o aviso.
 - **Desinstalar driver:** remove o driver com o `pnputil` (o Windows pede a sua permissão de administrador) e para o envio.
 - **Conectar por Miracast:** abre o painel Transmitir do Windows (como Win+K); escolha o receptor `LazyCast-<animal>` da lista.
