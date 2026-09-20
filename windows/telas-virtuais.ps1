@@ -84,7 +84,8 @@ function Anexar-TelasVirtuais([int]$max = 2, [int]$w = 1920, [int]$h = 1080, [in
         $dm = Novo-DevMode
         $dm.dmFields = 0x20 -bor 0x80000 -bor 0x100000 -bor 0x400000
         $dm.dmPositionX = $x; $dm.dmPositionY = 0; $dm.dmPelsWidth = $w; $dm.dmPelsHeight = $h; $dm.dmDisplayFrequency = $hz
-        [void][LcTV]::ChangeDisplaySettingsEx($t.Nome, [ref]$dm, [IntPtr]::Zero, (0x1 -bor 0x10000000), [IntPtr]::Zero)
+        $rc = [LcTV]::ChangeDisplaySettingsEx($t.Nome, [ref]$dm, [IntPtr]::Zero, (0x1 -bor 0x10000000), [IntPtr]::Zero)
+        if ($rc -ne 0) { Write-Host "Aviso: $($t.Nome) não aceitou ${w}x${h}@${hz} (código $rc)." }
         $x += $w
     }
     [void][LcTV]::Aplicar()

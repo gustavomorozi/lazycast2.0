@@ -68,7 +68,7 @@ function Ligar([int]$n, [string]$ip, [scriptblock]$log) {
     & $log "Preparando $n tela(s) virtual(is)..."
     if (@(Get-TelasVirtuais).Count -lt $n) {
         if (-not (Definir-Contagem $n)) { & $log 'Não consegui pedir os monitores ao driver.'; return $false }
-        for ($i = 0; $i -lt 25 -and @(Get-TelasVirtuais).Count -lt $n; $i++) { Start-Sleep -Milliseconds 800; [System.Windows.Forms.Application]::DoEvents() }
+        for ($i = 0; $i -lt 25 -and @(Get-TelasVirtuais).Count -lt $n; $i++) { Start-Sleep -Milliseconds 800; if ($script:form) { [System.Windows.Forms.Application]::DoEvents() } }
     }
     if (@(Get-TelasVirtuais).Count -lt $n) { & $log 'O driver não criou os monitores. Reinicie o notebook e tente de novo.'; return $false }
     # 2) coloca na área de trabalho, 1920x1080 a 60 Hz
