@@ -73,7 +73,8 @@ function Desanexar-TelasVirtuais {
 # 2) ChangeDisplaySettingsEx: posição e modo de cada monitor (e anexa monitores já conhecidos).
 function Anexar-TelasVirtuais([int]$max = 2, [int]$w = 1920, [int]$h = 1080, [int]$hz = 60) {
     function Ativas { @(Get-TelasVirtuais | Where-Object { $_.Anexado }).Count }
-    if ((Ativas) -lt $max) { [void][LcTV]::Estender(); Start-Sleep 3 }
+    $existem = @(Get-TelasVirtuais).Count
+    if ((Ativas) -lt [Math]::Min($max, $existem)) { [void][LcTV]::Estender(); Start-Sleep 3 }
     $lista = @(Get-TelasVirtuais)
     # posição X: logo depois da tela mais à direita que não é virtual
     $x = 0

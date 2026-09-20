@@ -109,9 +109,12 @@ $drvPasta = Join-Path $env:LOCALAPPDATA 'LazyCast\driver'
 
 # O driver está instalado se o Windows tem o dispositivo (ou o pacote mttvdd.inf). O vdd_settings.xml NÃO conta:
 # ele continua no disco depois de desinstalar o driver.
-function Driver-Instalado {
-    if (Get-PnpDevice -Class Display -ErrorAction SilentlyContinue | Where-Object { $_.FriendlyName -eq 'Virtual Display Driver' }) { return $true }
-    return [bool]((pnputil /enum-drivers | Out-String) -match 'mttvdd\.inf')
+function Driver-Instalado([switch]$Forcar) {
+    if (-not $Forcar -and $script:drvCacheT -and ((Get-Date) - $script:drvCacheT).TotalSeconds -lt 20) { return $script:drvCache }
+    $r = [bool](Get-PnpDevice -Class Display -ErrorAction SilentlyContinue | Where-Object { $_.FriendlyName -eq 'Virtual Display Driver' })
+    if (-not $r) { $r = [bool]((pnputil /enum-drivers | Out-String) -match 'mttvdd\.inf') }
+    $script:drvCache = $r; $script:drvCacheT = Get-Date
+    return $r
 }
 
 # Baixa (ou usa -ZipLocal), confere o hash e extrai. Escreve o caminho do VDD Control.exe na última linha.
@@ -141,7 +144,7 @@ function Baixar-Driver([string]$zipLocal) {
 }
 
 function Instalar-Driver([scriptblock]$log) {
-    if (Driver-Instalado) { & $log 'O driver já está instalado.'; return }
+    if (Driver-Instalado -Forcar) { & $log 'O driver já está instalado.'; return }
     $r = [System.Windows.Forms.MessageBox]::Show("Vou baixar o Virtual Display Driver (68 MB) do GitHub oficial do projeto VirtualDrivers, versão 25.7.23, e conferir o SHA-256 antes de abrir.`n`nEm seguida o Windows vai pedir permissão de administrador para o instalador do driver. Continuar?", 'Instalar driver', 'YesNo', 'Question')
     if ($r -ne 'Yes') { & $log 'Instalação cancelada.'; return }
     & $log 'Baixando e verificando o driver (pode levar alguns minutos)...'
@@ -157,7 +160,7 @@ function Instalar-Driver([scriptblock]$log) {
 
 # Remove o driver com o pnputil (administrador: o Windows pede a sua aprovação).
 function Desinstalar-Driver([scriptblock]$log) {
-    if (-not (Driver-Instalado)) { & $log 'O driver não está instalado.'; return }
+    if (-not (Driver-Instalado -Forcar)) { & $log 'O driver não está instalado.'; return }
     $r = [System.Windows.Forms.MessageBox]::Show("Desinstalar o Virtual Display Driver? As telas virtuais deixam de existir e o envio para o Pi é parado.`n`nO Windows vai pedir permissão de administrador.", 'Desinstalar driver', 'YesNo', 'Warning')
     if ($r -ne 'Yes') { & $log 'Desinstalação cancelada.'; return }
     & $log 'Parando o envio...'
@@ -172,7 +175,7 @@ function Desinstalar-Driver([scriptblock]$log) {
         $proc = Start-Process -FilePath "$env:WINDIR\System32\pnputil.exe" -ArgumentList '/delete-driver', $oem, '/uninstall', '/force' -Verb RunAs -Wait -PassThru -WindowStyle Hidden
     } catch { & $log 'Pedido de administrador negado ou cancelado.'; return }
     Start-Sleep 2
-    & $log $(if (Driver-Instalado) { 'O driver ainda aparece instalado; reinicie o notebook ou use o VDD Control.' } else { 'Driver desinstalado.' })
+    & $log $(if (Driver-Instalado -Forcar) { 'O driver ainda aparece instalado; reinicie o notebook ou use o VDD Control.' } else { 'Driver desinstalado.' })
 }
 
 function Miracast([string]$nome, [scriptblock]$log) {
@@ -273,16 +276,20 @@ function Atualizar {
     $btnLigar.Enabled = $di
     $btnDesligar.Enabled = ($t -gt 0 -or $e -gt 0)
     # Enviando, mas as telas virtuais saíram da área de trabalho (o Windows às vezes as solta): o vídeo congelaria.
-    if ($t -gt 0 -and $e -lt $t -and -not $script:reanexando) {
+    if ($t -gt 0 -and $e -lt $t -and -not $script:ocupado -and -not $script:reanexando -and
+        (-not $script:proxReanexo -or (Get-Date) -ge $script:proxReanexo)) {
         $script:reanexando = $true
-        & $logFn 'As telas virtuais saíram da área de trabalho; reanexando...'
-        $e = Anexar-TelasVirtuais $t
-        & $logFn "Telas virtuais ativas: $e."
-        $script:reanexando = $false
+        $script:proxReanexo = (Get-Date).AddSeconds(30)          # no máximo uma tentativa a cada 30 s
+        try {
+            & $logFn 'As telas virtuais saíram da área de trabalho; reanexando...'
+            $e = Anexar-TelasVirtuais $t
+            & $logFn "Telas virtuais ativas: $e."
+        } finally { $script:reanexando = $false }
     }
     $lblEstado.Text = "Enviando: $t fluxo(s)   |   Telas virtuais ativas: $e"
 }
 function Ocupado($sim) {
+    $script:ocupado = $sim
     $f.UseWaitCursor = $sim
     foreach ($b in @($btnLigar, $btnDesligar, $btnMira, $btnDriver, $btnDesinst)) { $b.Enabled = -not $sim }
     if (-not $sim) { Atualizar }
