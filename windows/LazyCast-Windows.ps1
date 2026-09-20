@@ -6,6 +6,7 @@
 # Sem janela (para testes/automação): LazyCast-Windows.ps1 -Acao ligar|desligar|status|driver-status [-Telas 2] [-Pi IP[,IP]]
 param([ValidateSet('', 'ligar', 'desligar', 'status', 'driver-status', 'baixar-driver')][string]$Acao = '', [int]$Telas = 2, [string]$Pi = '', [switch]$Remover, [string]$ZipLocal = '')
 
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $pasta = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ipFile = Join-Path $pasta 'pi-ip.txt'
 $nomeFile = Join-Path $pasta 'miracast-nome.txt'
@@ -17,14 +18,18 @@ function Ler($f) { if (Test-Path $f) { (Get-Content $f -Raw).Trim() } else { '' 
 # Roda um script desta pasta sem janela; devolve a saída (texto) e não segura processos filhos (ffmpeg).
 function Rodar([string]$script, [string[]]$args2, [int]$timeoutSeg = 120) {
     $saida = [System.IO.Path]::GetTempFileName()
+    # Cada argumento entre aspas: caminhos com espaço (pasta do usuário) não quebram o -File
     $a = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $pasta $script)) + $args2
-    $p = Start-Process -FilePath $ps -ArgumentList $a -WindowStyle Hidden -PassThru -RedirectStandardOutput $saida
+    $linha = ($a | ForEach-Object { '"' + ("$_" -replace '"', '') + '"' }) -join ' '
+    $p = Start-Process -FilePath $ps -ArgumentList $linha -WindowStyle Hidden -PassThru -RedirectStandardOutput $saida
     $fim = (Get-Date).AddSeconds($timeoutSeg)
     while (-not $p.HasExited -and (Get-Date) -lt $fim) {
         Start-Sleep -Milliseconds 200
         if ($script:form) { [System.Windows.Forms.Application]::DoEvents() }
     }
-    $txt = (Get-Content $saida -Raw -ErrorAction SilentlyContinue)
+    if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue; $script:ultimoExit = -1 }
+    else { $script:ultimoExit = $p.ExitCode }
+    $txt = (Get-Content $saida -Raw -Encoding UTF8 -ErrorAction SilentlyContinue)
     Remove-Item $saida -Force -ErrorAction SilentlyContinue
     return "$txt".Trim()
 }
@@ -42,10 +47,10 @@ function Telas-Extras {
 
 function Definir-Contagem([int]$n) {
     if (-not (Test-Path $cfgVdd)) { return $false }
-    [xml]$x = Get-Content $cfgVdd -Raw
-    $x.vdd_settings.monitors.count = "$n"
-    $x.Save($cfgVdd)
     try {
+        [xml]$x = Get-Content $cfgVdd -Raw
+        $x.vdd_settings.monitors.count = "$n"
+        $x.Save($cfgVdd)
         $p = New-Object System.IO.Pipes.NamedPipeClientStream('.', 'MTTVirtualDisplayPipe', [System.IO.Pipes.PipeDirection]::InOut)
         $p.Connect(3000)
         $w = New-Object System.IO.StreamWriter($p); $w.AutoFlush = $true; $w.Write('RELOAD_DRIVER'); Start-Sleep -Milliseconds 800; $p.Dispose()
@@ -55,11 +60,12 @@ function Definir-Contagem([int]$n) {
 
 function Ligar([int]$n, [string]$ip, [scriptblock]$log) {
     if (-not (Test-Path $cfgVdd)) { & $log 'Driver do monitor virtual não instalado (veja LEIA-ME.md, passo 2).'; return $false }
-    if (-not $ip) { & $log 'Informe o IP do Raspberry Pi.'; return $false }
+    if ($ip -notmatch '^\d{1,3}(\.\d{1,3}){3}([,; ]+\d{1,3}(\.\d{1,3}){3})*$') { & $log 'IP inválido. Use, por exemplo, 192.168.0.43 (cabo e Wi-Fi separados por vírgula).'; return $false }
+    $ip = ($ip -split '[,; ]+' | Where-Object { $_ }) -join ','
     Set-Content -Path $ipFile -Value $ip
     & $log "Criando $n tela(s) virtual(is)..."
     $o = Rodar 'configurar-telas-virtuais.ps1' @('-Telas', "$n") 90
-    $o -split "`r?`n" | Where-Object { $_ -match 'ok|Pronto|Nenhuma|não' } | ForEach-Object { & $log $_ }
+    $o -split "`r?`n" | Where-Object { $_ -match '-> ok|Pronto|Nenhuma|não apare' } | ForEach-Object { & $log $_ }
     if ((Telas-Extras) -lt $n) {
         Start-Process "$env:WINDIR\System32\DisplaySwitch.exe" -ArgumentList '/extend' -Wait; Start-Sleep 3     # reativa telas desativadas
     }
@@ -120,7 +126,9 @@ function Baixar-Driver([string]$zipLocal) {
     Write-Host 'Arquivo verificado (SHA-256 confere).'
     $dest = Join-Path $drvPasta 'VDD'
     $exe = Join-Path $dest 'VDD Control.exe'
-    if (-not (Test-Path $exe)) { Expand-Archive -Path $zip -DestinationPath $dest -Force }
+    # sempre extrai do zip verificado (um exe antigo/alterado na pasta nunca é reaproveitado)
+    if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
+    Expand-Archive -Path $zip -DestinationPath $dest -Force
     if (-not (Test-Path $exe)) { Write-Host 'ERRO: VDD Control.exe não está no pacote.'; exit 3 }
     Write-Host $exe
 }
@@ -133,11 +141,31 @@ function Instalar-Driver([scriptblock]$log) {
     $o = Rodar 'LazyCast-Windows.ps1' @('-Acao', 'baixar-driver') 900
     $linhas = @($o -split "`r?`n" | Where-Object { $_ })
     $linhas | Select-Object -Last 2 | ForEach-Object { & $log $_ }
-    $exe = $linhas | Select-Object -Last 1
-    if (-not $exe -or -not (Test-Path -LiteralPath $exe)) { & $log 'Não foi possível preparar o driver.'; return }
+    $exe = Join-Path $drvPasta 'VDD\VDD Control.exe'          # caminho remontado aqui, não lido da saída do filho
+    if ($script:ultimoExit -ne 0 -or -not (Test-Path -LiteralPath $exe)) { & $log 'Não foi possível preparar o driver.'; return }
     & $log 'Abrindo o instalador (confirme o pedido de administrador do Windows)...'
     try { Start-Process -FilePath $exe -Verb RunAs } catch { & $log 'Pedido de administrador negado ou cancelado.'; return }
     & $log 'No programa que abriu, instale o driver. Depois volte aqui: o estado do driver atualiza sozinho.'
+}
+
+# Remove o driver com o pnputil (administrador: o Windows pede a sua aprovação).
+function Desinstalar-Driver([scriptblock]$log) {
+    if (-not (Driver-Instalado)) { & $log 'O driver não está instalado.'; return }
+    $r = [System.Windows.Forms.MessageBox]::Show("Desinstalar o Virtual Display Driver? As telas virtuais deixam de existir e o envio para o Pi é parado.`n`nO Windows vai pedir permissão de administrador.", 'Desinstalar driver', 'YesNo', 'Warning')
+    if ($r -ne 'Yes') { & $log 'Desinstalação cancelada.'; return }
+    & $log 'Parando o envio...'
+    [void](Rodar 'estender-tela.ps1' @('-Parar') 30)
+    # acha o nome publicado (oemNN.inf) do pacote mttvdd.inf
+    $blocos = (pnputil /enum-drivers | Out-String) -split '(\r?\n){2,}'
+    $oem = $null
+    foreach ($b in $blocos) { if ($b -match 'mttvdd\.inf' -and $b -match '(oem\d+\.inf)') { $oem = $Matches[1]; break } }
+    if (-not $oem) { & $log 'Não encontrei o pacote do driver no Windows.'; return }
+    & $log "Removendo $oem (confirme o pedido de administrador)..."
+    try {
+        $proc = Start-Process -FilePath "$env:WINDIR\System32\pnputil.exe" -ArgumentList '/delete-driver', $oem, '/uninstall', '/force' -Verb RunAs -Wait -PassThru -WindowStyle Hidden
+    } catch { & $log 'Pedido de administrador negado ou cancelado.'; return }
+    Start-Sleep 2
+    & $log $(if (Driver-Instalado) { 'O driver ainda aparece instalado; reinicie o notebook ou use o VDD Control.' } else { 'Driver desinstalado.' })
 }
 
 function Miracast([string]$nome, [scriptblock]$log) {
@@ -187,11 +215,14 @@ $cmbN.DropDownStyle = 'DropDownList'; [void]$cmbN.Items.AddRange(@('1', '2')); $
 $chkRem = Novo 'CheckBox' 20 156 470 22 'Ao desligar, remover também os monitores do driver (só voltam após reiniciar)'
 $chkRem.Font = New-Object System.Drawing.Font('Segoe UI', 8.5)
 $btnDriver = Novo 'Button' 335 182 155 26 'Instalar driver'
-$lblDriver = Novo 'Label' 335 184 155 22 'Driver já instalado'
+$lblDriver = Novo 'Label' 335 212 155 20 'Driver já instalado'
+$btnDesinst = Novo 'Button' 335 182 155 26 'Desinstalar driver'
+$btnDesinst.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+$btnDesinst.Visible = $false
 $lblDriver.ForeColor = [System.Drawing.Color]::FromArgb(30, 130, 60); $lblDriver.Visible = $false
 $btnDriver.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 $btnLigar = Novo 'Button' 20 112 230 40 'Ligar tela virtual'
-$btnDesligar = Novo 'Button' 260 112 230 40 'Desligar e remover'
+$btnDesligar = Novo 'Button' 260 112 230 40 'Desligar'
 
 $lbl2 = Novo 'Label' 20 185 470 22 'Miracast (Transmitir do Windows)'
 $lbl2.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 11)
@@ -210,12 +241,13 @@ function Atualizar {
     $lblEstado.Text = "Enviando: $t fluxo(s)  |  Telas virtuais: $e  |  Driver: $(if ($di) { 'instalado' } else { 'NÃO instalado' })"
     $btnDriver.Visible = -not $di       # já instalado: esconde o botão e mostra o aviso
     $lblDriver.Visible = $di
+    $btnDesinst.Visible = $di
     $btnLigar.Enabled = $di
     $btnDesligar.Enabled = ($t -gt 0 -or $e -gt 0)
 }
 function Ocupado($sim) {
     $f.UseWaitCursor = $sim
-    foreach ($b in @($btnLigar, $btnDesligar, $btnMira, $btnDriver)) { $b.Enabled = -not $sim }
+    foreach ($b in @($btnLigar, $btnDesligar, $btnMira, $btnDriver, $btnDesinst)) { $b.Enabled = -not $sim }
     if (-not $sim) { Atualizar }
     [System.Windows.Forms.Application]::DoEvents()
 }
@@ -226,6 +258,7 @@ $btnLigar.Add_Click({
 })
 $btnDesligar.Add_Click({ Ocupado $true; try { Desligar $logFn $chkRem.Checked } finally { Ocupado $false } })
 $btnDriver.Add_Click({ Ocupado $true; try { Instalar-Driver $logFn } finally { Ocupado $false } })
+$btnDesinst.Add_Click({ Ocupado $true; try { Desinstalar-Driver $logFn } finally { Ocupado $false } })
 $btnMira.Add_Click({ Miracast $txtNome.Text.Trim() $logFn })
 
 $timer = New-Object System.Windows.Forms.Timer
