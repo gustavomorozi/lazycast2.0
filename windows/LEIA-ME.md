@@ -3,6 +3,16 @@
 Cria até **duas telas virtuais** no Windows e envia cada uma pela rede (Wi-Fi ou Ethernet) para o Raspberry Pi,
 que as mostra na Tela 1 e na Tela 2 (ou na prévia do painel, se não houver monitor HDMI).
 
+## Programa com janela: `LazyCast.bat`
+
+Dê dois cliques em `LazyCast.bat`. Na janela:
+
+- **Ligar tela virtual:** cria 1 ou 2 telas virtuais, estende a área de trabalho e envia ao Pi (IP do Pi: cabo e/ou Wi-Fi, separados por vírgula).
+- **Desligar e remover:** para o envio e desativa as telas (Win+P, somente tela do PC). Com a caixa marcada, zera também os monitores do driver; nesse caso o driver só os recria depois de reiniciar o notebook.
+- **Conectar por Miracast:** abre o painel Transmitir do Windows (como Win+K); escolha o receptor `LazyCast-<animal>` da lista.
+
+Os passos abaixo (`.bat` separados) continuam valendo se preferir linha de comando.
+
 ## Passo a passo
 
 1. **No Raspberry Pi** (painel LazyCast → Configurações → *Fonte de cada tela*): escolha **Rede (UDP 5004)** para a
