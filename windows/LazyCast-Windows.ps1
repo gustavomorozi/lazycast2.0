@@ -60,7 +60,7 @@ function Definir-Contagem([int]$n) {
 }
 
 function Ligar([int]$n, [string]$ip, [scriptblock]$log) {
-    if (-not (Test-Path $cfgVdd)) { & $log 'Driver do monitor virtual não instalado (veja LEIA-ME.md, passo 2).'; return $false }
+    if (-not (Driver-Instalado)) { & $log 'Driver do monitor virtual não instalado. Use o botão Instalar driver.'; return $false }
     if ($ip -notmatch '^\d{1,3}(\.\d{1,3}){3}([,; ]+\d{1,3}(\.\d{1,3}){3})*$') { & $log 'IP inválido. Use, por exemplo, 192.168.0.43 (cabo e Wi-Fi separados por vírgula).'; return $false }
     $ip = ($ip -split '[,; ]+' | Where-Object { $_ }) -join ','
     Set-Content -Path $ipFile -Value $ip
@@ -107,9 +107,11 @@ $drvUrl = 'https://github.com/VirtualDrivers/Virtual-Display-Driver/releases/dow
 $drvSha = 'a701f2272e9fcf382849b24f913c6dd07597b3b1116525f2e90182f019609154'
 $drvPasta = Join-Path $env:LOCALAPPDATA 'LazyCast\driver'
 
+# O driver está instalado se o Windows tem o dispositivo (ou o pacote mttvdd.inf). O vdd_settings.xml NÃO conta:
+# ele continua no disco depois de desinstalar o driver.
 function Driver-Instalado {
-    if (Test-Path $cfgVdd) { return $true }
-    [bool](Get-PnpDevice -Class Display -ErrorAction SilentlyContinue | Where-Object { $_.FriendlyName -eq 'Virtual Display Driver' -and $_.Status -eq 'OK' })
+    if (Get-PnpDevice -Class Display -ErrorAction SilentlyContinue | Where-Object { $_.FriendlyName -eq 'Virtual Display Driver' }) { return $true }
+    return [bool]((pnputil /enum-drivers | Out-String) -match 'mttvdd\.inf')
 }
 
 # Baixa (ou usa -ZipLocal), confere o hash e extrai. Escreve o caminho do VDD Control.exe na última linha.
