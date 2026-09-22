@@ -7,6 +7,17 @@
 param([ValidateSet('', 'ligar', 'desligar', 'status', 'driver-status', 'baixar-driver', 'preparar-driver')][string]$Acao = '', [int]$Telas = 2, [string]$Pi = '', [switch]$Remover, [string]$ZipLocal = '')
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+# Esconde o console do PowerShell de forma confiável: o -WindowStyle Hidden do atalho/LazyCast.bat
+# às vezes deixa a janela preta piscar ou aparecer (visto ao vivo). GetConsoleWindow+ShowWindow(0) funciona sempre.
+try {
+    Add-Type -Name Win32 -Namespace LcConsole -MemberDefinition '
+        [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
+        [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    '
+    $hwndConsole = [LcConsole.Win32]::GetConsoleWindow()
+    if ($hwndConsole -ne [IntPtr]::Zero) { [void][LcConsole.Win32]::ShowWindow($hwndConsole, 0) }   # 0 = SW_HIDE
+} catch {}
+
 $pasta = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ipFile = Join-Path $pasta 'pi-ip.txt'
 $nomeFile = Join-Path $pasta 'miracast-nome.txt'
