@@ -67,12 +67,18 @@ R="$XDG_CONFIG_HOME/labwc/rc.xml"
 grep -q 'name="MoveTo" x="0" y="40"' "$R" && grep -q 'name="MoveTo" x="383" y="40"' "$R" && ok "janelas lado a lado (x=0 e x=383)" || bad "lado a lado" "$(cat $R)"
 grep -q 'width="383" height="215"' "$R" && ok "tamanho proporcional 16:9 (383x215)" || bad "16:9" "$(cat $R)"
 grep -q 'lazycast-layout' "$R" && ok "arquivo marcado como do LazyCast" || bad "marca" ""
-# b) dois HDMI reais -> cada tela em tela cheia no seu monitor (esq -> dir)
+# b) dois HDMI reais -> cada tela SEMPRE no seu conector fixo (Tela N -> HDMI-A-N), não pela posição/ordem
 wlr-randr() { printf 'HDMI-A-2 "B"\n  Modes:\n    1920x1080 px, 60.0 Hz (preferred, current)\n  Position: 1920,0\nHDMI-A-1 "A"\n  Modes:\n    1920x1080 px, 60.0 Hz (preferred, current)\n  Position: 0,0\nNOOP-1 "x"\n  Modes:\n    767x660 px (current)\n  Position: 0,0\n'; }
 write_vlc_layout 2 && ok "layout aplicado (2 HDMI)" || bad "layout hdmi" falhou
-grep -A1 'title="LazyCast-1"' "$R" | grep -q 'output="HDMI-A-1"' && ok "tela 1 no monitor da esquerda (HDMI-A-1)" || bad "tela1" "$(cat $R)"
-grep -A1 'title="LazyCast-2"' "$R" | grep -q 'output="HDMI-A-2"' && ok "tela 2 no monitor da direita (HDMI-A-2)" || bad "tela2" "$(cat $R)"
+grep -A1 'title="LazyCast-1"' "$R" | grep -q 'output="HDMI-A-1"' && ok "tela 1 sempre em HDMI-A-1" || bad "tela1" "$(cat $R)"
+grep -A1 'title="LazyCast-2"' "$R" | grep -q 'output="HDMI-A-2"' && ok "tela 2 sempre em HDMI-A-2" || bad "tela2" "$(cat $R)"
 grep -q 'ToggleFullscreen' "$R" && ok "tela cheia nos monitores reais" || bad "fullscreen" ""
+# b2) só HDMI-A-2 ligado (o cabo foi movido de porta): tela 1 continua vinculada a HDMI-A-1 (mesmo ausente),
+# tela 2 continua em HDMI-A-2 — o vínculo não troca por causa de qual cabo está ligado agora
+wlr-randr() { printf 'HDMI-A-2 "B"\n  Modes:\n    1920x1080 px, 60.0 Hz (preferred, current)\n  Position: 0,0\n'; }
+write_vlc_layout 2 && ok "layout aplicado (só HDMI-A-2)" || bad "layout so-hdmi2" falhou
+grep -A1 'title="LazyCast-1"' "$R" | grep -q 'output="HDMI-A-1"' && ok "tela 1 não migra para o monitor ligado" || bad "tela1 não deveria migrar" "$(cat $R)"
+grep -A1 'title="LazyCast-2"' "$R" | grep -q 'output="HDMI-A-2"' && ok "tela 2 permanece em HDMI-A-2" || bad "tela2" "$(cat $R)"
 # c) rc.xml do usuário (sem a marca) não é sobrescrito
 echo '<labwc_config/>' > "$R"
 if write_vlc_layout 2 >/dev/null; then bad "não deveria sobrescrever" ok; else ok "rc.xml do usuário preservado"; fi
@@ -97,10 +103,10 @@ setup_vlc_output 2 >/dev/null
 eq "1 monitor + 2 telas: layout aplicado (sem --fullscreen)" "$LAZYCAST_FULLSCREEN" "0"
 R="$XDG_CONFIG_HOME/labwc/rc.xml"
 grep -A1 'title="LazyCast-1"' "$R" | grep -q 'output="HDMI-A-1"' &&
-grep -A1 'title="LazyCast-2"' "$R" | grep -q 'output="HDMI-A-1"' &&
+grep -A1 'title="LazyCast-2"' "$R" | grep -q 'output="HDMI-A-2"' &&
 grep -q 'ToggleFullscreen' "$R" && ! grep -q 'MoveTo x' "$R" &&
-    ok "1 monitor + 2 telas: as duas em tela cheia no mesmo monitor (não divide)" ||
-    bad "1 monitor + 2 telas deveria dar tela cheia, não dividir" "$(cat "$R")"
+    ok "1 monitor + 2 telas: cada uma no seu conector fixo, em tela cheia (não divide)" ||
+    bad "1 monitor + 2 telas deveria dar tela cheia por conector fixo, não dividir" "$(cat "$R")"
 unset -f command pgrep kill sleep wlr-randr
 
 # --- fonte de cada tela (sem fio / capturadora USB / fluxo de rede)
@@ -127,6 +133,14 @@ n1=$(random_animal_name)
 seen=""; for _i in $(seq 1 40); do seen="$seen $(random_animal_name)"; done
 distinct=$(echo $seen | tr ' ' '\n' | sort -u | wc -l)
 [ "$distinct" -gt 5 ] && ok "o sorteio varia ($distinct nomes distintos em 40)" || bad "variedade do sorteio" "$distinct"
+
+# --- hdmi_topology: nomes dos monitores reais ligados, para watch_hdmi_hotplug notar troca de cabo/porta
+command() { [ "$1" = "-v" ] && [ "$2" = "wlr-randr" ] && return 0; builtin command "$@"; }
+wlr-randr() { printf 'HDMI-A-2 "B"\n  Modes:\n    1920x1080 px, 60.0 Hz (preferred, current)\n  Position: 1920,0\nHDMI-A-1 "A"\n  Modes:\n    1920x1080 px, 60.0 Hz (preferred, current)\n  Position: 0,0\nNOOP-1 "x"\n  Modes:\n    767x660 px (current)\n  Position: 0,0\n'; }
+eq "hdmi_topology ignora NOOP e ordena por nome" "$(hdmi_topology)" "HDMI-A-1,HDMI-A-2,"
+wlr-randr() { printf 'HDMI-A-2 "B"\n  Modes:\n    1920x1080 px, 60.0 Hz (preferred, current)\n  Position: 0,0\n'; }
+eq "hdmi_topology muda se um monitor for desligado (só HDMI-A-2)" "$(hdmi_topology)" "HDMI-A-2,"
+unset -f command wlr-randr
 
 # --- nome da rede (postfix do SSID Wi-Fi Direct)
 eq "postfix simples" "$(network_postfix LazyCast-Gecko)" "-LazyCast-Gecko"
