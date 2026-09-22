@@ -57,14 +57,18 @@ done
 pause_networkmanager
 cleanup_orphan_p2p_ifaces
 slot_pids=()
+dhcp_watch_pid=""
+# [fix] antes só era chamada ao encerrar o script (trap): o grupo Wi-Fi Direct pode se recriar várias vezes
+# na vida do serviço (troca de canal, reconexão), e cada recriação subia wired-input.sh/watch_dhcp_release
+# novos sem matar os do ciclo anterior — vários processos disputando a mesma tela/porta ao mesmo tempo.
 stop_slots() {
     local j
     [ "${#slot_pids[@]}" -gt 0 ] && kill "${slot_pids[@]}" 2>/dev/null
     pkill -f "[w]ired-input.sh" 2>/dev/null
     for ((j = 1; j < nwl; j++)); do pkill -f "[d]2.py $(wl_ip $j)" 2>/dev/null; done
-    [ -n "$hotplug_pid" ] && kill "$hotplug_pid" 2>/dev/null
+    [ -n "$dhcp_watch_pid" ] && kill "$dhcp_watch_pid" 2>/dev/null
 }
-trap 'stop_slots; resume_networkmanager; exit 0' INT TERM HUP
+trap 'stop_slots; [ -n "$hotplug_pid" ] && kill "$hotplug_pid" 2>/dev/null; resume_networkmanager; exit 0' INT TERM HUP
 
 # Vigia o HDMI para a vida toda do script (não a cada ciclo do grupo Wi-Fi Direct): se um monitor for
 # plugado, tirado ou trocado de porta depois do LazyCast já estar rodando, o layout se corrige sozinho.
@@ -160,10 +164,14 @@ do
 	printf "lease_file $PWD/udhcpd.leases\n">>udhcpd.conf
 	rm -f "$PWD/udhcpd.leases"
 	sleep 3
+	# [fix] o grupo P2P pode ter sido recriado (reconexão/troca de canal): mata wired-input.sh/watch_dhcp_release
+	# do ciclo anterior antes de subir os deste, para não ficar mais de um disputando a mesma tela/porta.
+	stop_slots
 	# [fix] evita udhcpd duplicado a cada reconexão
 	sudo pkill -f "[u]dhcpd ./udhcpd.conf" 2>/dev/null
 	sudo busybox udhcpd ./udhcpd.conf
 	watch_dhcp_release "$p2pinterface" ./udhcpd.conf "$PWD/udhcpd.leases" &
+	dhcp_watch_pid=$!
 	echo "The display is ready"
 	echo "Your device is called: $display_name"
 	slot_pids=()
