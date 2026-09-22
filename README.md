@@ -62,22 +62,23 @@ O painel usa `sudo -n` para controlar o serviço (o usuário padrão do Raspberr
 
 ## Estender a tela do Windows (telas virtuais pela rede)
 
-Além do Miracast, o Windows pode enviar até **duas telas virtuais** (extensão da área de trabalho) ao Pi, por **Wi-Fi (roteador) ou cabo Ethernet**. Cada uma vira a Tela 1 e a Tela 2 do Pi. O programa fica em [`windows/`](windows/LEIA-ME.md): `LazyCast.exe`, um `.exe` de verdade (Python + PyInstaller, sem PowerShell/console).
+Além do Miracast, o Windows pode enviar até **duas telas virtuais** (extensão da área de trabalho) ao Pi, por **Wi-Fi (roteador) ou cabo Ethernet**. Cada uma vira a Tela 1 e a Tela 2 do Pi. O programa fica em [`windows/`](windows/LEIA-ME.md): `LazyCast.exe`, um `.exe` de verdade (Python + PyInstaller, sem PowerShell/console) — o Pi expõe um servidor de configuração leve (`config_server.py`, porta 8765, mesma rede) que o programa usa para achar o Pi sozinho e buscar/gravar as configurações, sem precisar digitar IP nem editar arquivo nenhum.
 
 **No Raspberry Pi**
 
 1. Painel LazyCast > Configurações > *Fonte de cada tela*: escolha **Tela estendida do Windows (rede, porta 5004)** na Tela 1 e **(porta 5006)** na Tela 2, com o modo *Duas telas*. Ou, no `lazycast-config.conf`: `SCREEN1_SOURCE="stream:5004"` e `SCREEN2_SOURCE="stream:5006"`.
-2. Anote o IP mostrado ali (cabo e Wi-Fi aparecem separados).
+2. Enquanto uma tela não recebe fluxo nenhum (antes de ligar no Windows, ou se a conexão cair), ela mostra "Tela N — aguardando conexão" em vez de ficar preta/sem sinal; o vídeo real cobre o aviso assim que chega.
 
 **No Windows**
 
 1. Instale o `ffmpeg` no PATH.
-2. Abra `windows\LazyCast.exe` e clique em **Instalar driver** (baixa e instala o Virtual Display Driver, projeto VirtualDrivers; o Windows pede administrador, aprove você mesmo).
-3. Informe o IP do Pi, escolha 1 ou 2 telas e clique em **Ligar tela virtual**.
+2. Abra `windows\LazyCast.exe` (se o Windows bloquear por não ter assinatura digital, use `windows\LazyCast.bat` — veja [windows/LEIA-ME.md](windows/LEIA-ME.md)) e clique em **Instalar driver** (baixa e instala o Virtual Display Driver, projeto VirtualDrivers; o Windows pede administrador, aprove você mesmo).
+3. Na seção **Raspberry Pi**, clique em **Atualizar lista**, escolha o Pi encontrado na rede e clique em **Conectar** — as configurações do Pi (nome, PIN, fonte de cada tela) são buscadas sozinhas. Nada na tela fica editável antes de conectar.
+4. Escolha 1 ou 2 telas e clique em **Ligar tela virtual**.
 
 **Para usar**
 
-- Cada tela virtual aparece à direita da principal: arraste janelas para lá. Sem monitor HDMI no Pi, acompanhe em **Ver telas**.
+- Cada tela virtual aparece à direita da principal: arraste janelas para lá. Sem monitor HDMI no Pi, acompanhe em **Ver telas** (painel do Pi) ou pelo [Raspberry Pi Connect](https://www.raspberrypi.com/documentation/services/connect.html), se já estiver configurado no Pi — ambos mostram a mesma área de trabalho remotamente.
 - Minimizar deixa o programa rodando na bandeja; fechar a janela para o envio e solta as telas virtuais.
 - Bitrate padrão 3 Mbps (testado no Wi-Fi 2,4 GHz); por cabo dá para usar mais.
 
@@ -128,6 +129,8 @@ journalctl -u lazycast -f                 # logs do serviço
 
 O serviço roda como o usuário que executou o `sudo`, exporta o ambiente da sessão gráfica (Wayland/D-Bus) e envia notificações de desktop quando disponíveis.
 
+`install-service.sh` também instala e inicia o `lazycast-config-server.service` (porta 8765, mesma rede) — é ele que o programa do Windows usa para achar o Pi e buscar/gravar as configurações; sem interface própria, roda em segundo plano junto do `lazycast.service`.
+
 ## Estrutura do repositório
 
 ```
@@ -138,6 +141,7 @@ O serviço roda como o usuário que executou o `sudo`, exporta o ambiente da ses
 ├── lazycast-background.sh / lazycast.service         execução em background (systemd)
 ├── control/                                          UIBC (mouse/teclado) em C
 ├── wired-input.sh / gui/                             entradas com fio (USB/rede) e painel GTK
+├── config_server.py / lazycast-config-server.service servidor de configuração do Pi (usado pelo Windows)
 ├── windows/                                          telas virtuais e envio ao Pi (Windows)
 ├── tests/ test-*.sh                                  testes sem hardware
 ├── docs/                                             guias adicionais
@@ -165,6 +169,8 @@ Consulte [docs/TESTING-GUIDE.md](docs/TESTING-GUIDE.md) para o roteiro em hardwa
 | Display 2 não inicia | Falta segundo adaptador Wi-Fi P2P (veja o log em `lazycast_instance_display2/`) |
 | Sem vídeo após `setup-hdmi.sh` antigo | Rode a versão atual: ela remove `vc4-fkms-v3d`; reinicie |
 | Wi-Fi varrendo redes durante o cast | Desative varreduras em segundo plano; veja [docs/TIPS.md](docs/TIPS.md) |
+| Windows bloqueia `LazyCast.exe` (SmartScreen ou Controle de Inteligência de Aplicativos) | Veja [windows/LEIA-ME.md](windows/LEIA-ME.md); alternativa sem depender de assinatura digital: `windows\LazyCast.bat` |
+| Programa do Windows não encontra o Pi na lista | Confirme que os dois estão na mesma rede (Wi-Fi/cabo) e que `lazycast-config-server.service` está ativo no Pi (`sudo systemctl status lazycast-config-server`) |
 
 ## Limitações conhecidas
 
