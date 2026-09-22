@@ -1,0 +1,15 @@
+[Unit]
+Description=LazyCast Config Server (configurações na rede local, para o programa Windows)
+After=network.target lazycast.service
+Wants=lazycast.service
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/lazycast2.0
+ExecStart=/usr/bin/python3 /home/pi/lazycast2.0/config_server.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical.target

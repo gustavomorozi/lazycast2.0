@@ -25,6 +25,9 @@ Na janela:
   aparecendo em Configurações > Vídeo depois que você fecha o programa.
 - **Conectar por Miracast:** abre o painel Transmitir do Windows (como Win+K); escolha o receptor
   `LazyCast-<animal>` da lista.
+- **Configurações do Pi:** busca sozinho, ao abrir o programa, o nome da rede, o PIN, o modo (1/2 telas) e a
+  fonte de cada tela direto do Pi (pela rede local, sem SSH e sem senha — o Pi expõe isso num servidor pequeno,
+  mesma porta que o resto do LazyCast já usa na rede). "Salvar no Pi" grava e reinicia o serviço lá sozinho.
 
 ## Passo a passo
 

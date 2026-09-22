@@ -75,6 +75,8 @@ check "watch_dhcp_release libera quando qualquer aparelho sai" grep -q 'n" -lt "
 
 check "GUI: testes da camada de dados (tests/test_gui_backend.py)" bash -c "python3 tests/test_gui_backend.py || python tests/test_gui_backend.py"
 check "Windows: testes do lazycast_windows.py (só roda de verdade no Windows)" bash -c "python3 tests/test_lazycast_windows.py || python tests/test_lazycast_windows.py"
+check "config_server.py: sintaxe e rotas do servidor de configuração" bash -c "python3 -c 'import ast; ast.parse(open(\"config_server.py\", encoding=\"utf-8\").read())' && grep -q \"'/api/config'\" config_server.py && grep -q \"'/api/status'\" config_server.py"
+check "config_server.py tem systemd e entra no install-service.sh" bash -c "test -f lazycast-config-server.service && grep -q lazycast-config-server.service install-service.sh"
 check "GUI: atalho de menu e instalador" bash -c "grep -q lazycast-gui.py gui/lazycast.desktop.in && grep -q lazycast.desktop install.sh"
 check "GUI: compila" bash -c "python3 -m py_compile gui/lazycast-gui.py gui/backend.py || python -m py_compile gui/lazycast-gui.py gui/backend.py"
 
