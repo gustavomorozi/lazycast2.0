@@ -2,3 +2,8 @@ estender-tela*.log
 estender-log.txt
 estender.pids
 pi-ip.txt
+miracast-nome.txt
+__pycache__/
+build/
+dist/
+*.spec
