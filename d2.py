@@ -435,15 +435,12 @@ if usehidc:
 
 
 
-def killall(control):
+def killall():
         # [dual] escopo por porta RTP: 'pkill vlc' mataria o player da outra instancia
         subprocess.call(['pkill', '-f', 'rtp://0.0.0.0:%d' % rtp_port])
         subprocess.call(['pkill', '-f', 'udp://0.0.0.0:%d' % rtp_port])
         if display_power_management == 1:
                 os.system('vcgencmd display_power 0')
-        if control:
-                os.system('pkill control.bin')
-                os.system('pkill controlhidc.bin')
 
 # M5
 data = recv_rtsp_message(sock)
@@ -484,7 +481,7 @@ sessionid=paralist[position].split(';')[0]
 player_select = 0
 
 def launchplayer(player_select):
-	killall(False)
+	killall()
 	if display_power_management == 1:
 		os.system('vcgencmd display_power 1')
 	if player_select == 0:
@@ -546,7 +543,7 @@ while True:
 					select.select([sock, idrsock], [], [], IDLE_TICK)
 					watchdog = watchdog + IDLE_TICK
 					if watchdog >= WATCHDOG_TIMEOUT:
-						killall(True)
+						killall()
 						sleep(1)
 						break
 				else:
@@ -555,7 +552,7 @@ while True:
 				print(datafromc)
 				elemfromc = datafromc.split(' ')				
 				if elemfromc[0] == 'recv':
-					killall(True)
+					killall()
 					sleep(1)
 					break
 				else:
@@ -576,7 +573,7 @@ while True:
 		print(data)
 		watchdog = 0
 		if len(data)==0:
-			killall(True)
+			killall()
 			sleep(1)
 			break
 		messagelist=data.split('\r\n\r\n')
@@ -603,7 +600,7 @@ while True:
 				sock.sendall(teardown.encode())
 			except socket.error:
 				pass
-			killall(True)
+			killall()
 			sleep(1)
 			break
 		elif 'wfd_video_formats' in data and time.time() - negotiation_time > 5:

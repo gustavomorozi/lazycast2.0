@@ -177,10 +177,6 @@ echo "  Verificando Binários Compilados"
 echo "=========================================="
 echo ""
 
-check_file "player/player.bin" "player.bin" "optional"
-check_file "h264/h264.bin" "h264.bin" "optional"
-check_file "control/control.bin" "control.bin" "optional"
-
 echo ""
 echo "=========================================="
 echo "  Verificando Bibliotecas do Sistema"

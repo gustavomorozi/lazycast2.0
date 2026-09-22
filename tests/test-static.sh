@@ -41,10 +41,10 @@ check "all-dual.sh possui defaults de porta distintos" bash -c "grep -q 'DISPLAY
 
 # Instalador no Pi 5 não compila OpenMAX
 check "install.sh força player 0 no Pi 5" grep -q 'PLAYER_SELECT=0' install.sh
-check "Makefile padrão só compila control" bash -c "grep -q '^all: control$' Makefile"
+check "install.sh não compila nem instala libx11-dev/build-essential (control/ removido, código morto)" bash -c "! grep -qE 'libx11-dev|build-essential|make -C control' install.sh"
 
 # Somente Pi 5: sem OpenMAX/legado no repositório
-check "sem diretórios h264/ e player/" bash -c "[ ! -d h264 ] && [ ! -d player ]"
+check "sem diretórios h264/, player/ e control/ (código morto)" bash -c "[ ! -d h264 ] && [ ! -d player ] && [ ! -d control ] && [ ! -f Makefile ]"
 check "d2.py sem referências a h264.bin/player.bin/omxplayer ativos" bash -c "! grep -v '^[[:space:]]*#' d2.py | grep -q 'h264.bin\|player.bin\|omxplayer '"
 check "d2.py força player_select = 0" bash -c "grep -q '^player_select = 0' d2.py"
 check "install.sh recusa hardware não-Pi5 sem --force" bash -c "grep -q 'somente o Raspberry Pi 5' install.sh"
