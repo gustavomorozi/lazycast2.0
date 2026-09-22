@@ -332,10 +332,18 @@ set_p2p_network_name() {
 # A decisão é tomada ao iniciar o serviço; ligou/desligou um monitor -> reinicie o LazyCast.
 #################################################################################
 setup_vlc_output() {
-    local slots="$1" nreal
+    local slots="$1" nreal i
     export LAZYCAST_VLC_MODE=window
     if command -v wlr-randr >/dev/null 2>&1 && pgrep -x labwc >/dev/null 2>&1; then
         nreal=$(labwc_outputs | grep -vc '^NOOP')
+        # [fix] o labwc pode levar alguns segundos para "assentar" um monitor recém-(re)conectado (visto ao
+        # vivo: logo após reiniciar o serviço ou a sessão gráfica, wlr-randr ainda não reportava o monitor,
+        # mesmo já ligado). Tenta de novo por até ~4s antes de decidir que não há monitor real.
+        for ((i = 0; i < 8; i++)); do
+            [ "$nreal" -ge 1 ] && break
+            sleep 0.5
+            nreal=$(labwc_outputs | grep -vc '^NOOP')
+        done
         if [ "$nreal" -lt 1 ]; then
             export LAZYCAST_VLC_MODE=hidden
             echo "Nenhum monitor HDMI ligado: vídeo sem janela (veja em 'Ver telas' no painel)."
