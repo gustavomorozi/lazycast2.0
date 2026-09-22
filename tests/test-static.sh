@@ -74,6 +74,7 @@ check "all.sh suporta grupo compartilhado (SHARED_SLOTS)" bash -c "grep -q SHARE
 check "watch_dhcp_release libera quando qualquer aparelho sai" grep -q 'n" -lt "$prev"' lib-p2p.sh
 
 check "GUI: testes da camada de dados (tests/test_gui_backend.py)" bash -c "python3 tests/test_gui_backend.py || python tests/test_gui_backend.py"
+check "Windows: testes do lazycast_windows.py (só roda de verdade no Windows)" bash -c "python3 tests/test_lazycast_windows.py || python tests/test_lazycast_windows.py"
 check "GUI: atalho de menu e instalador" bash -c "grep -q lazycast-gui.py gui/lazycast.desktop.in && grep -q lazycast.desktop install.sh"
 check "GUI: compila" bash -c "python3 -m py_compile gui/lazycast-gui.py gui/backend.py || python -m py_compile gui/lazycast-gui.py gui/backend.py"
 
