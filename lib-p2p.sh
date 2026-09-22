@@ -233,16 +233,29 @@ write_vlc_layout() {
     if [ "${#real[@]}" -ge 1 ]; then
         # Há pelo menos um monitor HDMI real: cada tela vai SEMPRE no seu próprio conector físico, em tela
         # cheia — Tela 1 em HDMI-A-1, Tela 2 em HDMI-A-2 — nunca uma no lugar da outra, e nunca dividindo o
-        # mesmo monitor. Isso não depende de qual cabo foi plugado primeiro/por último nem da posição dele;
-        # se o monitor de uma tela não estiver ligado, essa tela simplesmente não aparece em lugar nenhum
-        # (não "empresta" o monitor da outra). O nome do conector (HDMI-A-N) é o mesmo no wlr-randr e no
-        # /sys/class/drm do Pi 5, que tem 2 saídas físicas.
+        # mesmo monitor. Isso não depende de qual cabo foi plugado primeiro/por último nem da posição dele.
+        # O nome do conector (HDMI-A-N) é o mesmo no wlr-randr e no /sys/class/drm do Pi 5, que tem 2 saídas
+        # físicas. Se o monitor de uma tela não estiver ligado agora, a janela dela é minimizada (Iconify):
+        # "MoveToOutput" para uma saída que não existe falha calado e a janela fica onde abriu, em tela
+        # cheia, sobrepondo a tela que TEM monitor — testado no hardware, era exatamente isso que causava
+        # uma imagem por cima da outra quando só um dos dois cabos HDMI estava ligado.
+        local -A presentes=()
+        local r
+        for r in "${real[@]}"; do presentes["${r%% *}"]=1; done
         for ((i = 0; i < slots; i++)); do
-            rules+="    <windowRule title=\"LazyCast-$((i + 1))\">
-      <action name=\"MoveToOutput\" output=\"HDMI-A-$((i + 1))\"/>
+            name="HDMI-A-$((i + 1))"
+            if [ -n "${presentes[$name]:-}" ]; then
+                rules+="    <windowRule title=\"LazyCast-$((i + 1))\">
+      <action name=\"MoveToOutput\" output=\"$name\"/>
       <action name=\"ToggleFullscreen\"/>
     </windowRule>
 "
+            else
+                rules+="    <windowRule title=\"LazyCast-$((i + 1))\">
+      <action name=\"Iconify\"/>
+    </windowRule>
+"
+            fi
         done
     else
         # Nenhum monitor real (só a saída virtual do VNC): tela cheia não faz sentido para administração remota,
