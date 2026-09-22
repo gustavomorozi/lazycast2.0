@@ -38,7 +38,8 @@ else
 fi
 
 # Verificar se os processos estão rodando
-if pgrep -f "all.sh" > /dev/null || pgrep -f "all-dual.sh" > /dev/null; then
+# [fix] "all.sh" sem âncora também casa 'install.sh' (mesmo bug já corrigido em lazycast-background.sh)
+if pgrep -f "(^|[ /])all(-dual)?[.]sh( |$)" > /dev/null; then
     PROCESS_STATUS="✓ Rodando"
     PROCESS_COLOR="#00FF00"
 else
