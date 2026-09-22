@@ -20,6 +20,7 @@ import sys
 import threading
 import time
 import tkinter as tk
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -532,6 +533,36 @@ def telas_extras():
     return sum(1 for _, a in get_telas_virtuais() if a)
 
 
+# ============================================================ configurações do Pi (pela rede)
+CONFIG_PORTA = 8765
+CAMPOS_CONFIG_PI = ('DISPLAY1_NAME', 'DISPLAY_MODE', 'LAZYCAST_AUTH', 'LAZYCAST_PIN', 'SCREEN1_SOURCE', 'SCREEN2_SOURCE')
+
+
+def buscar_config_pi(ip):
+    """GET no servidor de configuração do Pi (config_server.py, mesma rede local, sem senha). Levanta
+    excecao se o Pi nao responder (a chamada trata isso)."""
+    with urllib.request.urlopen(f'http://{ip}:{CONFIG_PORTA}/api/config', timeout=4) as r:
+        return json.loads(r.read().decode('utf-8'))
+
+
+def gravar_config_pi(ip, campos):
+    """POST com as mudancas; o Pi grava e reinicia o servico sozinho (igual ao 'Salvar e aplicar' do
+    painel dele). Devolve (ok, mensagem_de_erro_ou_vazio)."""
+    corpo = json.dumps(campos).encode('utf-8')
+    req = urllib.request.Request(f'http://{ip}:{CONFIG_PORTA}/api/config', data=corpo, method='POST',
+                                  headers={'Content-Type': 'application/json'})
+    try:
+        with urllib.request.urlopen(req, timeout=8) as r:
+            resp = json.loads(r.read().decode('utf-8'))
+        return bool(resp.get('ok')), resp.get('mensagem', '')
+    except urllib.error.HTTPError as e:
+        try:
+            resp = json.loads(e.read().decode('utf-8'))
+            return False, resp.get('erro', str(e))
+        except (ValueError, OSError):
+            return False, str(e)
+
+
 def miracast(nome, log):
     if nome:
         NOME_FILE.write_text(nome)
@@ -593,15 +624,47 @@ class App:
         self.txt_nome.grid(row=1, column=0, sticky='w', padx=10, pady=(0, 8))
         ttk.Button(f3, text='Conectar', command=self.on_miracast).grid(row=1, column=1, padx=10)
 
+        # ---- 4. Configurações do Pi (buscadas/gravadas pela rede, sem SSH nem senha)
+        f4 = ttk.LabelFrame(root, text='4. Configurações do Pi (nome, PIN, fonte de cada tela)')
+        f4.grid(row=3, column=0, sticky='ew', **pad)
+        ttk.Label(f4, text='Nome da rede').grid(row=0, column=0, sticky='w', padx=10, pady=(8, 0))
+        ttk.Label(f4, text='Telas no Pi').grid(row=0, column=1, sticky='w', padx=10, pady=(8, 0))
+        self.txt_pi_nome = ttk.Entry(f4, width=22)
+        self.txt_pi_nome.grid(row=1, column=0, sticky='w', padx=10)
+        self.cmb_pi_modo = ttk.Combobox(f4, values=['1', '2'], width=5, state='readonly')
+        self.cmb_pi_modo.set('2')
+        self.cmb_pi_modo.grid(row=1, column=1, sticky='w', padx=10)
+        ttk.Label(f4, text='Tela 1 vem de').grid(row=2, column=0, sticky='w', padx=10, pady=(8, 0))
+        ttk.Label(f4, text='Tela 2 vem de').grid(row=2, column=1, sticky='w', padx=10, pady=(8, 0))
+        fontes = ['auto (sem fio/Miracast)', 'stream:5004 (Windows, rede)', 'stream:5006 (Windows, rede)']
+        self.cmb_pi_fonte1 = ttk.Combobox(f4, values=fontes, width=24, state='readonly')
+        self.cmb_pi_fonte1.set(fontes[0])
+        self.cmb_pi_fonte1.grid(row=3, column=0, sticky='w', padx=10)
+        self.cmb_pi_fonte2 = ttk.Combobox(f4, values=fontes, width=24, state='readonly')
+        self.cmb_pi_fonte2.set(fontes[0])
+        self.cmb_pi_fonte2.grid(row=3, column=1, sticky='w', padx=10)
+        ttk.Label(f4, text='Conexão').grid(row=4, column=0, sticky='w', padx=10, pady=(8, 0))
+        self.cmb_pi_auth = ttk.Combobox(f4, values=['Sem PIN (mais fácil)', 'Com PIN'], width=18, state='readonly')
+        self.cmb_pi_auth.set('Sem PIN (mais fácil)')
+        self.cmb_pi_auth.grid(row=5, column=0, sticky='w', padx=10)
+        self.txt_pi_pin = ttk.Entry(f4, width=12)
+        self.txt_pi_pin.grid(row=5, column=1, sticky='w', padx=10)
+        self.btn_pi_atualizar = ttk.Button(f4, text='Buscar do Pi', command=self.on_buscar_config_pi)
+        self.btn_pi_atualizar.grid(row=6, column=0, sticky='w', padx=10, pady=10)
+        self.btn_pi_salvar = ttk.Button(f4, text='Salvar no Pi', command=self.on_salvar_config_pi)
+        self.btn_pi_salvar.grid(row=6, column=1, sticky='w', padx=10, pady=10)
+
         # ---- estado e log
         self.lbl_estado = ttk.Label(root, foreground='#666666')
-        self.lbl_estado.grid(row=3, column=0, sticky='w', padx=16, pady=(6, 0))
+        self.lbl_estado.grid(row=4, column=0, sticky='w', padx=16, pady=(6, 0))
         self.txt_log = tk.Text(root, width=64, height=10, state='disabled', font=('Consolas', 9))
-        self.txt_log.grid(row=4, column=0, sticky='ew', padx=16, pady=(4, 12))
+        self.txt_log.grid(row=5, column=0, sticky='ew', padx=16, pady=(4, 12))
 
         self.log('Pronto.')
         self.atualizar()
         self._timer()
+        if validar_ip(self._ip_pi()):
+            self.on_buscar_config_pi()  # busca as configurações do Pi automaticamente ao abrir
 
     # ---- log/estado
     def log(self, msg):
@@ -685,6 +748,68 @@ class App:
 
     def on_miracast(self):
         miracast(self.txt_nome.get().strip(), self.log)
+
+    # ---- configurações do Pi (seção 4): busca ao abrir e sob pedido; grava com "Salvar no Pi"
+    _FONTES_TXT = ['auto (sem fio/Miracast)', 'stream:5004 (Windows, rede)', 'stream:5006 (Windows, rede)']
+    _FONTES_RAW = ['auto', 'stream:5004', 'stream:5006']
+    _AUTH_TXT = ['Sem PIN (mais fácil)', 'Com PIN']
+    _AUTH_RAW = ['pbc', 'pin']
+
+    def _ip_pi(self):
+        ip = self.txt_ip.get().strip()
+        if ',' in ip or ';' in ip:
+            import re
+            ip = re.split(r'[,; ]+', ip)[0]
+        return ip
+
+    def _preencher_config_pi(self, cfg):
+        self.txt_pi_nome.delete(0, 'end')
+        self.txt_pi_nome.insert(0, cfg.get('DISPLAY1_NAME', ''))
+        self.cmb_pi_modo.set(cfg.get('DISPLAY_MODE', '1'))
+        for combo, chave in ((self.cmb_pi_fonte1, 'SCREEN1_SOURCE'), (self.cmb_pi_fonte2, 'SCREEN2_SOURCE')):
+            raw = cfg.get(chave, 'auto')
+            idx = self._FONTES_RAW.index(raw) if raw in self._FONTES_RAW else 0
+            combo.set(self._FONTES_TXT[idx])
+        auth = cfg.get('LAZYCAST_AUTH', 'pbc')
+        self.cmb_pi_auth.set(self._AUTH_TXT[self._AUTH_RAW.index(auth)] if auth in self._AUTH_RAW else self._AUTH_TXT[0])
+        self.txt_pi_pin.delete(0, 'end')
+        self.txt_pi_pin.insert(0, cfg.get('LAZYCAST_PIN', ''))
+
+    def on_buscar_config_pi(self):
+        ip = self._ip_pi()
+        if not validar_ip(ip):
+            self.log('Informe o IP do Pi na seção 2 antes de buscar as configurações.')
+            return
+
+        def fazer():
+            try:
+                cfg = buscar_config_pi(ip)
+            except (OSError, ValueError) as e:
+                self.log(f'Não consegui buscar as configurações do Pi ({ip}): {e}')
+                return
+            self.root.after(0, lambda: self._preencher_config_pi(cfg))
+            self.log('Configurações do Pi atualizadas aqui.')
+        self._rodar_bg(fazer)
+
+    def on_salvar_config_pi(self):
+        ip = self._ip_pi()
+        if not validar_ip(ip):
+            self.log('Informe o IP do Pi na seção 2 antes de salvar.')
+            return
+        campos = {
+            'DISPLAY1_NAME': self.txt_pi_nome.get().strip(),
+            'DISPLAY_MODE': self.cmb_pi_modo.get() or '1',
+            'SCREEN1_SOURCE': self._FONTES_RAW[self._FONTES_TXT.index(self.cmb_pi_fonte1.get())] if self.cmb_pi_fonte1.get() in self._FONTES_TXT else 'auto',
+            'SCREEN2_SOURCE': self._FONTES_RAW[self._FONTES_TXT.index(self.cmb_pi_fonte2.get())] if self.cmb_pi_fonte2.get() in self._FONTES_TXT else 'auto',
+            'LAZYCAST_AUTH': self._AUTH_RAW[self._AUTH_TXT.index(self.cmb_pi_auth.get())] if self.cmb_pi_auth.get() in self._AUTH_TXT else 'pbc',
+            'LAZYCAST_PIN': self.txt_pi_pin.get().strip(),
+        }
+
+        def fazer():
+            self.log('Salvando no Pi (ele reinicia o serviço sozinho)...')
+            ok, msg = gravar_config_pi(ip, campos)
+            self.log('Configurações salvas no Pi.' if ok else f'Não consegui salvar no Pi: {msg}')
+        self._rodar_bg(fazer)
 
     # ---- bandeja: minimizar deixa rodando; Sair/fechar para tudo de verdade
     def on_minimizar(self, event):

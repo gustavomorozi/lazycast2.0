@@ -31,6 +31,7 @@ fi
 # Copiar arquivo de serviço
 echo "Copiando arquivo de serviço systemd..."
 cp "$LAZYCAST_DIR/lazycast.service" /etc/systemd/system/
+cp "$LAZYCAST_DIR/lazycast-config-server.service" /etc/systemd/system/
 
 # Ajustar caminho e usuário no arquivo de serviço
 sed -i "s|/home/pi/lazycast2.0|$LAZYCAST_DIR|g" /etc/systemd/system/lazycast.service
@@ -38,6 +39,8 @@ sed -i "s|^User=.*|User=$LAZYCAST_USER|" /etc/systemd/system/lazycast.service
 # UID real do usuário no runtime dir / barramento D-Bus da sessão
 LAZYCAST_UID="$(id -u "$LAZYCAST_USER" 2>/dev/null || echo 1000)"
 sed -i "s|/run/user/[0-9]*|/run/user/$LAZYCAST_UID|g" /etc/systemd/system/lazycast.service
+sed -i "s|/home/pi/lazycast2.0|$LAZYCAST_DIR|g" /etc/systemd/system/lazycast-config-server.service
+sed -i "s|^User=.*|User=$LAZYCAST_USER|" /etc/systemd/system/lazycast-config-server.service
 echo "Diretório: $LAZYCAST_DIR"
 echo "Usuário: $LAZYCAST_USER"
 
@@ -60,14 +63,16 @@ chmod +x "$LAZYCAST_DIR/lazycast-status.sh"
 echo "Recarregando systemd..."
 systemctl daemon-reload
 
-# Habilitar serviço
+# Habilitar serviços
 echo "Habilitando serviço LazyCast..."
 systemctl enable lazycast.service
+systemctl enable lazycast-config-server.service
 
-# Iniciar serviço
+# Iniciar serviços
 echo "Iniciando (ou reiniciando) serviço LazyCast..."
 # restart: se já estava ativo (reinstalação), "start" não recarregaria o código novo
 systemctl restart lazycast.service
+systemctl restart lazycast-config-server.service
 
 # Verificar status
 sleep 2

@@ -4,6 +4,7 @@ para Python). So roda no Windows: o modulo usa ctypes.windll (API do Windows) so
 import os
 import sys
 import unittest
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'windows'))
 
@@ -82,6 +83,36 @@ class DriverHashTests(unittest.TestCase):
             inf, devcon = lc.baixar_driver(zip_local=str(falso), log=lambda *_: None)
             self.assertIsNone(inf)
             self.assertIsNone(devcon)
+
+
+class ConfigPiMappingTests(unittest.TestCase):
+    """Mapeamento texto-do-combo <-> valor gravado no lazycast-config.conf (seção 4 da janela)."""
+
+    def test_fontes_ida_e_volta(self):
+        for raw in ('auto', 'stream:5004', 'stream:5006'):
+            idx = lc.App._FONTES_RAW.index(raw)
+            txt = lc.App._FONTES_TXT[idx]
+            self.assertEqual(lc.App._FONTES_RAW[lc.App._FONTES_TXT.index(txt)], raw)
+
+    def test_auth_ida_e_volta(self):
+        for raw in ('pbc', 'pin'):
+            idx = lc.App._AUTH_RAW.index(raw)
+            txt = lc.App._AUTH_TXT[idx]
+            self.assertEqual(lc.App._AUTH_RAW[lc.App._AUTH_TXT.index(txt)], raw)
+
+    def test_listas_mesmo_tamanho(self):
+        self.assertEqual(len(lc.App._FONTES_RAW), len(lc.App._FONTES_TXT))
+        self.assertEqual(len(lc.App._AUTH_RAW), len(lc.App._AUTH_TXT))
+
+    def test_campos_config_pi_batem_com_o_servidor(self):
+        # config_server.py (no Pi) expõe exatamente estes campos; se um lado mudar sem o outro, a janela
+        # buscaria/gravaria campos que o servidor ignora silenciosamente.
+        import re
+        servidor = (Path(__file__).resolve().parent.parent / 'config_server.py').read_text(encoding='utf-8')
+        m = re.search(r"CAMPOS = \(([^)]*)\)", servidor)
+        campos_servidor = set(re.findall(r"'([A-Z0-9_]+)'", m.group(1)))
+        campos_janela = set(lc.CAMPOS_CONFIG_PI)
+        self.assertEqual(campos_servidor, campos_janela)
 
 
 if __name__ == '__main__':
