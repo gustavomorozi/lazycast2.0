@@ -162,7 +162,6 @@ echo "=========================================="
 echo ""
 
 check_file "d2.py" "d2.py" "required"
-check_file "d2-multi.py" "d2-multi.py" "optional"
 check_file "all.sh" "all.sh" "required"
 check_file "all-dual.sh" "all-dual.sh" "optional"
 check_file "lazycast-config.conf" "lazycast-config.conf" "optional"
@@ -222,10 +221,6 @@ python_syntax_check() {
 
 if [ -f "d2.py" ]; then
     python_syntax_check "d2.py"
-fi
-
-if [ -f "d2-multi.py" ]; then
-    python_syntax_check "d2-multi.py"
 fi
 
 if [ -f "project.py" ]; then

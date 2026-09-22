@@ -336,7 +336,7 @@ fi
 chmod +x all.sh all-dual.sh install.sh install-service.sh setup-hdmi.sh
 chmod +x lazycast-background.sh lazycast-status.sh
 chmod +x clear_pairing.sh check_dependencies.sh lib-p2p.sh
-chmod +x d2.py d2-multi.py project.py
+chmod +x d2.py project.py
 
 # Painel gráfico: atalho no menu de aplicativos (gui/lazycast-gui.py)
 if [ -d /usr/share/applications ]; then

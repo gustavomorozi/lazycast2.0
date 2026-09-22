@@ -10,6 +10,9 @@
 - `all.sh`: `cd` para o diretório do script, udhcpd sem duplicar, laço sem consumo de 100% de CPU.
 - `install.sh`: verificação/instalação de dependências; chaves de porta/tela no config.
 
+### Removido
+- `d2-multi.py`: era a versão original (pré-refatoração) do receiver dual display, com `--instance`/`load_config()` próprios; `all.sh`/`all-dual.sh` já usam `d2.py` (com `LAZYCAST_RTP_PORT`/`LAZYCAST_SCREEN`/etc. por variável de ambiente) para as duas telas há tempos, então `d2-multi.py` nunca era executado de verdade — só um teste de integração validava um caminho morto.
+
 ## [Versão 2.4] - Correções de Bugs e Melhorias de Estabilidade
 
 ### Corrigido

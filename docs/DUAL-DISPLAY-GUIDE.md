@@ -148,7 +148,6 @@ lazycast2.0/
 ├── setup-hdmi.sh            # Configuração HDMI (novo)
 ├── lazycast-config.conf     # Arquivo de configuração (novo)
 ├── d2.py                    # Receiver principal (modificado)
-├── d2-multi.py             # Receiver multi-display (novo)
 ├── lazycast_instance_display1/  # Instância display 1
 │   ├── d2.py
 │   └── lazycast_display1.log

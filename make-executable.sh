@@ -12,7 +12,6 @@ chmod +x all-dual.sh
 chmod +x install.sh
 chmod +x setup-hdmi.sh
 chmod +x d2.py
-chmod +x d2-multi.py
 chmod +x project.py
 chmod +x mice.sh
 chmod +x vlcbased.sh

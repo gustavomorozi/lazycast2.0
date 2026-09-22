@@ -9,7 +9,6 @@ Como o LazyCast foi projetado para Raspberry Pi/Linux, o teste em ambiente Windo
 #### 1. Teste de Sintaxe Python
 ```bash
 python3 -m py_compile d2.py
-python3 -m py_compile d2-multi.py
 python3 -m py_compile project.py
 ```
 
