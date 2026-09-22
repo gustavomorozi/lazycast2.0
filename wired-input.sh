@@ -24,6 +24,7 @@ fi
 n=$((screen + 1))
 port=$(screen_rtp "$screen")            # identifica o canal de snapshot (lc<porta>-)
 title="LazyCast-$n"
+title_fundo="LazyCast-Fundo-$n"
 snap_dir="${XDG_RUNTIME_DIR:-/tmp}/lazycast"
 mkdir -p "$snap_dir"; chmod 700 "$snap_dir"
 
@@ -87,6 +88,27 @@ fi
 mouse_args=(--no-mouse-events)
 [ "$LAZYCAST_VLC_MODE" = "hidden" ] && mouse_args=()
 
+# Fundo permanente: enquanto não chega fluxo (ou se ele cair), o monitor não fica preto/sem sinal — mostra
+# "Tela N aguardando conexão". É uma janela própria (mesmo título fixo LazyCast-Fundo-N, sempre no mesmo
+# conector), colocada no fundo pela regra do labwc (ToggleAlwaysOnBottom); quando o vídeo real aparece, ele
+# cobre o fundo por cima. Só faz sentido com monitor de verdade (LAZYCAST_VLC_MODE=window).
+idle_png="$snap_dir/lc-fundo-$n.png"
+idle_pid=""
+gerar_fundo() {
+    local fonte=/usr/share/fonts/truetype/dejavu
+    ffmpeg -y -f lavfi -i color=c=0x1e1e1e:s=1920x1080 -frames:v 1 -update 1 -vf \
+        "drawtext=fontfile=$fonte/DejaVuSans-Bold.ttf:text=Tela $n:fontcolor=white:fontsize=96:x=(w-text_w)/2:y=(h-text_h)/2-40,drawtext=fontfile=$fonte/DejaVuSans.ttf:text=aguardando conexao:fontcolor=0xaaaaaa:fontsize=40:x=(w-text_w)/2:y=(h-text_h)/2+70" \
+        "$idle_png" >/dev/null 2>&1
+}
+start_idle() {
+    [ "$LAZYCAST_VLC_MODE" = "hidden" ] && return
+    [ -f "$idle_png" ] || gerar_fundo
+    [ -f "$idle_png" ] || return
+    vlc --fullscreen --video-title="$title_fundo" --intf dummy --no-audio --image-duration=-1 \
+        --no-mouse-events "$idle_png" >/dev/null 2>&1 < /dev/null &
+    idle_pid=$!
+}
+
 # Sem monitor (hidden) e fluxo de rede: o VLC com --vout=dummy exibe quadros de forma intermitente
 # ("buffer deadlock prevented") e o snapshot da prévia falha. Nesse caso o ffmpeg do Pi decodifica o fluxo
 # e grava 1 quadro por segundo em lc<porta>-latest.jpg, que o painel lê (independe de janela e de relógio).
@@ -120,8 +142,10 @@ start_vlc() {
 
 vlc_pid=""
 up=0
-trap '[ -n "$vlc_pid" ] && kill "$vlc_pid" 2>/dev/null; exit 0' INT TERM HUP
+trap '[ -n "$vlc_pid" ] && kill "$vlc_pid" 2>/dev/null; [ -n "$idle_pid" ] && kill "$idle_pid" 2>/dev/null; exit 0' INT TERM HUP
+start_idle
 while :; do
+    [ -n "$idle_pid" ] && ! kill -0 "$idle_pid" 2>/dev/null && start_idle
     if [ "$kind" = usb ] && [ ! -e "$dev" ]; then
         [ -n "$vlc_pid" ] && { kill "$vlc_pid" 2>/dev/null; vlc_pid=""; }
         [ "$up" = 1 ] && { notify "Tela $n desconectada ($label)"; up=0; }
