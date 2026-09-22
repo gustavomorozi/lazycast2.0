@@ -32,7 +32,7 @@ from threading import Event
 ##################### Settings #####################
 hostname = socket.gethostname() 
 # hostname = 'raspberrypi'
-# If ./mice.py and ./project.py do not run on the same machine, 
+# If ./newmice.py and ./project.py do not run on the same machine,
 # hostname and ipstr should be the those of the machine running ./project.py
 ipstr = ''
 # ipstr = '192.168.1.5'
@@ -53,7 +53,7 @@ if len(ipelems)>1 and ipstr == '':
 		print(ipelem)
 	ipstr = ipelems[0]
 	print('A PC will try to connect to '+ipstr+' directly if mDNS fails')
-	print('Set the variable "ipstr" in mice.py to another IP manually if '+ipstr+' does not work')
+	print('Set the variable "ipstr" in newmice.py to another IP manually if '+ipstr+' does not work')
 
 
 def groupStarted(properties):
