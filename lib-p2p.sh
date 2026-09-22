@@ -231,13 +231,15 @@ write_vlc_layout() {
     mapfile -t real < <(printf '%s\n' "${outs[@]}" | grep -v '^NOOP' | sort -k4,4n)
 
     if [ "${#real[@]}" -ge 1 ]; then
-        # Há pelo menos um monitor HDMI real: cada tela vai em tela cheia (nunca dividida). Com menos monitores
-        # que telas, mais de uma tela mira no mesmo monitor (ex.: 1 monitor + 2 telas): a que estiver por cima
-        # ocupa a tela toda; não reduzimos a janela para caber as duas lado a lado.
+        # Há pelo menos um monitor HDMI real: cada tela vai SEMPRE no seu próprio conector físico, em tela
+        # cheia — Tela 1 em HDMI-A-1, Tela 2 em HDMI-A-2 — nunca uma no lugar da outra, e nunca dividindo o
+        # mesmo monitor. Isso não depende de qual cabo foi plugado primeiro/por último nem da posição dele;
+        # se o monitor de uma tela não estiver ligado, essa tela simplesmente não aparece em lugar nenhum
+        # (não "empresta" o monitor da outra). O nome do conector (HDMI-A-N) é o mesmo no wlr-randr e no
+        # /sys/class/drm do Pi 5, que tem 2 saídas físicas.
         for ((i = 0; i < slots; i++)); do
-            read -r name w h x y <<< "${real[$((i % ${#real[@]}))]}"
             rules+="    <windowRule title=\"LazyCast-$((i + 1))\">
-      <action name=\"MoveToOutput\" output=\"$name\"/>
+      <action name=\"MoveToOutput\" output=\"HDMI-A-$((i + 1))\"/>
       <action name=\"ToggleFullscreen\"/>
     </windowRule>
 "
@@ -262,6 +264,36 @@ write_vlc_layout() {
     kill -HUP "$(pgrep -x labwc | head -1)" 2>/dev/null
     sleep 1
     return 0
+}
+
+# Nomes dos monitores HDMI realmente ligados agora (ordenados, ex.: "HDMI-A-1,HDMI-A-2,"); muda quando um
+# cabo é plugado, tirado ou trocado de porta. Usado por watch_hdmi_hotplug para notar a mudança.
+hdmi_topology() { labwc_outputs | grep -v '^NOOP' | awk '{print $1}' | sort | tr '\n' ','; }
+
+# Fica de olho nos monitores HDMI reais em segundo plano: se o conjunto ligado mudar (plugou/tirou um cabo,
+# trocou de porta, religou depois do LazyCast já estar rodando), refaz o layout (write_vlc_layout, sempre com
+# o mesmo vínculo fixo Tela N -> HDMI-A-N) e reinicia só o VLC da(s) tela(s) cujo PRÓPRIO monitor mudou de
+# estado agora — wired-input.sh/d2.py já o religam sozinhos, e a janela nova aplica a regra fixa. Assim a tela
+# cujo monitor não mudou não pisca, e cada tela continua independente da outra.
+watch_hdmi_hotplug() {
+    local slots="$1" last cur i out had has
+    command -v wlr-randr >/dev/null 2>&1 || return 0
+    last=$(hdmi_topology)
+    while :; do
+        sleep 3
+        pgrep -x labwc >/dev/null 2>&1 || continue
+        cur=$(hdmi_topology)
+        if [ "$cur" != "$last" ]; then
+            write_vlc_layout "$slots" >/dev/null 2>&1
+            for ((i = 0; i < slots; i++)); do
+                out="HDMI-A-$((i + 1))"
+                case ",$last," in *",$out,"*) had=1 ;; *) had=0 ;; esac
+                case ",$cur," in *",$out,"*) has=1 ;; *) has=0 ;; esac
+                [ "$had" != "$has" ] && pkill -f "video-title=LazyCast-$((i + 1))" 2>/dev/null
+            done
+        fi
+        last="$cur"
+    done
 }
 
 # Nome padrão do display: LazyCast-<animal em inglês> aleatório (ex.: LazyCast-Fox), sorteado a cada

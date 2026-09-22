@@ -62,8 +62,14 @@ stop_slots() {
     [ "${#slot_pids[@]}" -gt 0 ] && kill "${slot_pids[@]}" 2>/dev/null
     pkill -f "[w]ired-input.sh" 2>/dev/null
     for ((j = 1; j < nwl; j++)); do pkill -f "[d]2.py $(wl_ip $j)" 2>/dev/null; done
+    [ -n "$hotplug_pid" ] && kill "$hotplug_pid" 2>/dev/null
 }
 trap 'stop_slots; resume_networkmanager; exit 0' INT TERM HUP
+
+# Vigia o HDMI para a vida toda do script (não a cada ciclo do grupo Wi-Fi Direct): se um monitor for
+# plugado, tirado ou trocado de porta depois do LazyCast já estar rodando, o layout se corrige sozinho.
+watch_hdmi_hotplug "$slots" &
+hotplug_pid=$!
 
 while :
 do
