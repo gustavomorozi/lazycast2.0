@@ -378,6 +378,53 @@ setup_vlc_output() {
 }
 
 #################################################################################
+# Fundo permanente por tela: "Tela N - aguardando conexao" em vez de preto/sem sinal, direto na saida
+# HDMI, o tempo todo em que nao ha video de verdade chegando. Cobre TANTO fontes com fio/rede
+# (wired-input.sh, que so mostra o VLC quando ja abriu o socket) QUANTO Miracast sem fio (d2.py), que so
+# roda -- e so cria janela -- depois que um aparelho ja terminou a negociacao WFD; antes disso a tela nao
+# tinha nada do LazyCast nela. Mesmo titulo fixo (LazyCast-Fundo-N) usado pela regra do labwc em
+# write_vlc_layout, entao ele fica sempre no conector certo e sempre atras (ToggleAlwaysOnBottom) -- o
+# video real, quando aparece, cobre por cima sozinho.
+#################################################################################
+fundo_gerar() {
+    local n="$1" png="$2" fonte=/usr/share/fonts/truetype/dejavu
+    command -v ffmpeg >/dev/null 2>&1 || return 1
+    ffmpeg -y -f lavfi -i color=c=0x1e1e1e:s=1920x1080 -frames:v 1 -update 1 -vf \
+        "drawtext=fontfile=$fonte/DejaVuSans-Bold.ttf:text=Tela $n:fontcolor=white:fontsize=96:x=(w-text_w)/2:y=(h-text_h)/2-40,drawtext=fontfile=$fonte/DejaVuSans.ttf:text=aguardando conexao:fontcolor=0xaaaaaa:fontsize=40:x=(w-text_w)/2:y=(h-text_h)/2+70" \
+        "$png" >/dev/null 2>&1
+}
+
+# uso: fundo_supervisionar <tela 0-based> — chame em 2º plano (roda pra sempre; reinicia o VLC se cair).
+# Sem monitor nenhum (LAZYCAST_VLC_MODE=hidden) não faz sentido: não tem saída pra mostrar nada. Idempotente
+# de propósito: o grupo Wi-Fi Direct pode ser recriado várias vezes na vida do serviço (reconexão, troca de
+# canal, fonte sem-fio que nunca conecta) e quem chama isso de novo não deveria duplicar o processo —
+# testado ao vivo: sem essa trava, duas chamadas seguidas geravam duas janelas com o MESMO título brigando
+# pela mesma regra de posicionamento do labwc.
+fundo_supervisionar() {
+    # [fix] "local a=X b=$((a+1))" numa linha só NÃO encadeia: b via arredonda com o valor de "a" de ANTES
+    # desta declaração (indefinido -> 0 em contexto aritmético), não com o "X" que acabou de ser atribuído.
+    # Reproduzido isolado (bash 5.2): as duas telas calculavam n=1, então a tela 2 nunca tinha VLC de fundo
+    # próprio e a tela 1 recebia duas chamadas "n=1" concorrentes (daí a duplicata). Precisa de duas
+    # declarações separadas para "n" enxergar o valor novo de "screen".
+    local screen="$1"
+    local n=$((screen + 1)) snap_dir png
+    [ "${LAZYCAST_VLC_MODE:-window}" = hidden ] && return 0
+    # "^vlc" ancora no começo da linha de comando: sem isso, o próprio pgrep -f se encontrava (seu padrão
+    # de busca aparece na sua própria linha de comando) e a função sempre concluía "já rodando".
+    pgrep -f "^vlc.*video-title=LazyCast-Fundo-$n " >/dev/null 2>&1 && return 0
+    snap_dir="${XDG_RUNTIME_DIR:-/tmp}/lazycast"
+    mkdir -p "$snap_dir"
+    png="$snap_dir/lc-fundo-$n.png"
+    [ -f "$png" ] || fundo_gerar "$n" "$png"
+    [ -f "$png" ] || return 1
+    while :; do
+        vlc --fullscreen --video-title="LazyCast-Fundo-$n" --intf dummy --no-audio --image-duration=-1 \
+            --no-mouse-events "$png" >/dev/null 2>&1 < /dev/null
+        sleep 1
+    done
+}
+
+#################################################################################
 # Fonte de cada tela (SCREEN1_SOURCE / SCREEN2_SOURCE no lazycast-config.conf):
 #   auto | wireless        recebe por Wi-Fi Direct (Miracast)
 #   usb:<nome em /dev/v4l/by-id>   capturadora HDMI->USB (UVC), em qualquer porta USB (wired-input.sh)

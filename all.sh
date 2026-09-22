@@ -65,6 +65,7 @@ stop_slots() {
     local j
     [ "${#slot_pids[@]}" -gt 0 ] && kill "${slot_pids[@]}" 2>/dev/null
     pkill -f "[w]ired-input.sh" 2>/dev/null
+    pkill -f "video-title=LazyCast-Fundo-" 2>/dev/null
     for ((j = 1; j < nwl; j++)); do pkill -f "[d]2.py $(wl_ip $j)" 2>/dev/null; done
     [ -n "$dhcp_watch_pid" ] && kill "$dhcp_watch_pid" 2>/dev/null
 }
@@ -176,6 +177,12 @@ do
 	echo "Your device is called: $display_name"
 	slot_pids=()
 	setup_vlc_output "$slots"
+	# Fundo "Tela N - aguardando conexao" pra TODAS as telas (com fio ou sem fio) -- ver fundo_supervisionar
+	# em lib-p2p.sh. Entra no mesmo slot_pids que o resto: stop_slots já mata tudo ao recriar o grupo.
+	for ((k = 0; k < slots; k++)); do
+		fundo_supervisionar "$k" &
+		slot_pids+=($!)
+	done
 	# Entradas COM FIO (capturadora USB ou fluxo de rede): um laço por tela com fonte usb:/stream:
 	for ((k = 0; k < slots; k++)); do
 		src="$(screen_source $k)"
