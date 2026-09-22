@@ -17,9 +17,7 @@ for f in lib-p2p.sh all.sh all-dual.sh install.sh install-service.sh setup-hdmi.
     check "bash -n $f" bash -n "$f"
 done
 PY=$(command -v python3 || command -v python)
-for f in d2.py d2-multi.py; do
-    check "py_compile $f" "$PY" -c "import ast,sys; ast.parse(open('$f',encoding='utf-8').read())"
-done
+check "py_compile d2.py" "$PY" -c "import ast,sys; ast.parse(open('d2.py',encoding='utf-8').read())"
 
 # Fim de linha LF (CRLF quebra o shebang no Pi)
 for f in *.sh *.py lazycast.service; do
@@ -31,10 +29,9 @@ check "setup-hdmi.sh não adiciona vc4-fkms-v3d" bash -c "! grep -q 'add_config_
 check "setup-hdmi.sh não adiciona hdmi_mode" bash -c "! grep -q 'add_config_line' setup-hdmi.sh"
 
 # Dual display: sem pkill global de vlc e sem porta RTP fixa duplicada
-check "d2.py sem 'pkill vlc' global" bash -c "! grep -q \"system('pkill vlc')\" d2.py d2-multi.py && ! grep -q '^[[:space:]]*pkill vlc' all-dual.sh"
-check "d2.py sem 'ps au' em laço" bash -c "! grep -q \"popen('ps au')\" d2.py d2-multi.py"
+check "d2.py sem 'pkill vlc' global" bash -c "! grep -q \"system('pkill vlc')\" d2.py && ! grep -q '^[[:space:]]*pkill vlc' all-dual.sh"
+check "d2.py sem 'ps au' em laço" bash -c "! grep -q \"popen('ps au')\" d2.py"
 check "d2.py usa rtp_port (sem 1028 fixo no código ativo)" bash -c "! grep -v '^[[:space:]]*#' d2.py | grep -v omxplayer | grep -q 'unicast 1028\|client_port=1028\|rtp://0.0.0.0:1028'"
-check "d2-multi.py usa rtp_port" bash -c "! grep -v '^[[:space:]]*#' d2-multi.py | grep -v omxplayer | grep -q 'unicast 1028\|client_port=1028\|rtp://0.0.0.0:1028'"
 
 # Configuração gerada: portas e telas distintas por display
 port1=$(grep -o 'DISPLAY1_RTP_PORT=[0-9]*' install.sh | head -1 | cut -d= -f2)
@@ -48,8 +45,8 @@ check "Makefile padrão só compila control" bash -c "grep -q '^all: control$' M
 
 # Somente Pi 5: sem OpenMAX/legado no repositório
 check "sem diretórios h264/ e player/" bash -c "[ ! -d h264 ] && [ ! -d player ]"
-check "d2.py sem referências a h264.bin/player.bin/omxplayer ativos" bash -c "! grep -v '^[[:space:]]*#' d2.py d2-multi.py | grep -q 'h264.bin\|player.bin\|omxplayer '"
-check "d2.py força player_select = 0" bash -c "grep -q '^player_select = 0' d2.py && grep -q '^player_select = 0' d2-multi.py"
+check "d2.py sem referências a h264.bin/player.bin/omxplayer ativos" bash -c "! grep -v '^[[:space:]]*#' d2.py | grep -q 'h264.bin\|player.bin\|omxplayer '"
+check "d2.py força player_select = 0" bash -c "grep -q '^player_select = 0' d2.py"
 check "install.sh recusa hardware não-Pi5 sem --force" bash -c "grep -q 'somente o Raspberry Pi 5' install.sh"
 check "install.sh aceita --yes" bash -c "grep -q -- '--yes' install.sh"
 

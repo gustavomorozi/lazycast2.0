@@ -121,32 +121,6 @@ test_receiver() { # test_receiver [args extras do mock_source]
     fi
 }
 
-test_receiver_multi() {
-    echo ""
-    echo "== d2-multi.py (instância display2) contra fonte simulada =="
-    local dir; dir=$(make_sandbox receiver-multi)
-    cat > "$dir/lazycast-config.conf" <<'EOF'
-DISPLAY_MODE=2
-DISPLAY1_PLAYER_SELECT=2
-DISPLAY1_SOUND_OUTPUT=0
-DISPLAY2_PLAYER_SELECT=2
-DISPLAY2_SOUND_OUTPUT=1
-DISABLE_1920_1080_60FPS=0
-EOF
-    start_source "$dir" || return
-    (cd "$dir" && PATH="$STUBS:$PATH" timeout 60 python3 d2-multi.py 127.0.0.1 --instance display2 > receiver.log 2>&1; echo $? > receiver.exit)
-    source_result "$dir"; local src=$?
-    local before=$FAILED
-    check "multi: config carregada (Audio: 1)" grep -q "Player: 2, Audio: 1" "$dir/receiver.log"
-    check "multi: DISABLE_1920_1080_60FPS=0 refletido no wfd_video_formats" grep -q "0001FFFF" "$dir/receiver.log"
-    check "multi: negociação completa e TEARDOWN" test "$src" -eq 0
-    check "multi: saiu com código 0" test "$(cat "$dir/receiver.exit")" = "0"
-    if [ "$FAILED" -gt "$before" ]; then
-        echo "--- source.log"; tail -30 "$dir/source.log"
-        echo "--- receiver.log"; tail -30 "$dir/receiver.log"
-    fi
-}
-
 test_all_sh() {
     echo ""
     echo "== all.sh com wpa_cli/udhcpd simulados =="
@@ -227,11 +201,10 @@ EOF
 make_stubs
 case "${1:-everything}" in
     receiver) test_receiver; test_receiver --coalesce ;;
-    multi) test_receiver_multi ;;
     all) test_all_sh ;;
     dual) test_all_dual_sh ;;
-    everything) test_receiver; test_receiver --coalesce; test_receiver_multi; test_all_sh; test_all_dual_sh ;;
-    *) echo "uso: $0 [receiver|multi|all|dual|everything]"; exit 2 ;;
+    everything) test_receiver; test_receiver --coalesce; test_all_sh; test_all_dual_sh ;;
+    *) echo "uso: $0 [receiver|all|dual|everything]"; exit 2 ;;
 esac
 
 echo ""

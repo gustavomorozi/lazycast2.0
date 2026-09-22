@@ -137,7 +137,7 @@ O serviço roda como o usuário que executou o `sudo`, exporta o ambiente da ses
 .
 ├── install.sh / install-service.sh / setup-hdmi.sh   instalação e configuração
 ├── all.sh / all-dual.sh                              orquestração P2P + DHCP + receptor
-├── d2.py / d2-multi.py                               receptor RTSP/Miracast
+├── d2.py                                              receptor RTSP/Miracast
 ├── lazycast-background.sh / lazycast.service         execução em background (systemd)
 ├── control/                                          UIBC (mouse/teclado) em C
 ├── wired-input.sh / gui/                             entradas com fio (USB/rede) e painel GTK
