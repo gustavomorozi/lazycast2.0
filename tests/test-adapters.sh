@@ -73,11 +73,12 @@ write_vlc_layout 2 && ok "layout aplicado (2 HDMI)" || bad "layout hdmi" falhou
 grep -A1 'title="LazyCast-1"' "$R" | grep -q 'output="HDMI-A-1"' && ok "tela 1 sempre em HDMI-A-1" || bad "tela1" "$(cat $R)"
 grep -A1 'title="LazyCast-2"' "$R" | grep -q 'output="HDMI-A-2"' && ok "tela 2 sempre em HDMI-A-2" || bad "tela2" "$(cat $R)"
 grep -q 'ToggleFullscreen' "$R" && ok "tela cheia nos monitores reais" || bad "fullscreen" ""
-# b2) só HDMI-A-2 ligado (o cabo foi movido de porta): tela 1 continua vinculada a HDMI-A-1 (mesmo ausente),
-# tela 2 continua em HDMI-A-2 — o vínculo não troca por causa de qual cabo está ligado agora
+# b2) só HDMI-A-2 ligado (o cabo foi movido de porta ou o outro monitor está desligado): tela 1 (vinculada
+# a HDMI-A-1, ausente) é minimizada em vez de tentar migrar — MoveToOutput para uma saída inexistente falha
+# calado e deixaria a janela onde abriu, em tela cheia, por cima da tela 2 (testado no hardware real).
 wlr-randr() { printf 'HDMI-A-2 "B"\n  Modes:\n    1920x1080 px, 60.0 Hz (preferred, current)\n  Position: 0,0\n'; }
 write_vlc_layout 2 && ok "layout aplicado (só HDMI-A-2)" || bad "layout so-hdmi2" falhou
-grep -A1 'title="LazyCast-1"' "$R" | grep -q 'output="HDMI-A-1"' && ok "tela 1 não migra para o monitor ligado" || bad "tela1 não deveria migrar" "$(cat $R)"
+grep -A1 'title="LazyCast-1"' "$R" | grep -q 'Iconify' && ok "tela 1 (sem monitor) é minimizada, não sobrepõe" || bad "tela1 deveria minimizar" "$(cat $R)"
 grep -A1 'title="LazyCast-2"' "$R" | grep -q 'output="HDMI-A-2"' && ok "tela 2 permanece em HDMI-A-2" || bad "tela2" "$(cat $R)"
 # c) rc.xml do usuário (sem a marca) não é sobrescrito
 echo '<labwc_config/>' > "$R"
@@ -103,10 +104,10 @@ setup_vlc_output 2 >/dev/null
 eq "1 monitor + 2 telas: layout aplicado (sem --fullscreen)" "$LAZYCAST_FULLSCREEN" "0"
 R="$XDG_CONFIG_HOME/labwc/rc.xml"
 grep -A1 'title="LazyCast-1"' "$R" | grep -q 'output="HDMI-A-1"' &&
-grep -A1 'title="LazyCast-2"' "$R" | grep -q 'output="HDMI-A-2"' &&
+grep -A1 'title="LazyCast-2"' "$R" | grep -q 'Iconify' &&
 grep -q 'ToggleFullscreen' "$R" && ! grep -q 'MoveTo x' "$R" &&
-    ok "1 monitor + 2 telas: cada uma no seu conector fixo, em tela cheia (não divide)" ||
-    bad "1 monitor + 2 telas deveria dar tela cheia por conector fixo, não dividir" "$(cat "$R")"
+    ok "1 monitor + 2 telas: tela 1 em tela cheia no seu conector, tela 2 (sem monitor) minimizada" ||
+    bad "1 monitor + 2 telas deveria dar tela cheia na tela 1 e minimizar a tela 2" "$(cat "$R")"
 unset -f command pgrep kill sleep wlr-randr
 
 # --- fonte de cada tela (sem fio / capturadora USB / fluxo de rede)
