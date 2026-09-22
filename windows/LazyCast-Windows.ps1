@@ -7,6 +7,17 @@
 param([ValidateSet('', 'ligar', 'desligar', 'status', 'driver-status', 'baixar-driver', 'preparar-driver')][string]$Acao = '', [int]$Telas = 2, [string]$Pi = '', [switch]$Remover, [string]$ZipLocal = '')
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+# Esconde o console do PowerShell de forma confiável: o -WindowStyle Hidden do atalho/LazyCast.bat
+# às vezes deixa a janela preta piscar ou aparecer (visto ao vivo). GetConsoleWindow+ShowWindow(0) funciona sempre.
+try {
+    Add-Type -Name Win32 -Namespace LcConsole -MemberDefinition '
+        [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
+        [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    '
+    $hwndConsole = [LcConsole.Win32]::GetConsoleWindow()
+    if ($hwndConsole -ne [IntPtr]::Zero) { [void][LcConsole.Win32]::ShowWindow($hwndConsole, 0) }   # 0 = SW_HIDE
+} catch {}
+
 $pasta = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ipFile = Join-Path $pasta 'pi-ip.txt'
 $nomeFile = Join-Path $pasta 'miracast-nome.txt'
@@ -105,8 +116,10 @@ function Desligar([scriptblock]$log, [bool]$remover = $false) {
 }
 
 # ---- driver do monitor virtual (Virtual Display Driver, projeto VirtualDrivers)
-# Versão e hash fixos: o arquivo só é usado se o SHA-256 conferir com o publicado no GitHub. O instalador do driver
-# (VDD Control.exe) é aberto com o pedido de administrador do Windows: quem aprova é você.
+# Versão e hash fixos: o arquivo só é usado se o SHA-256 conferir com o publicado no GitHub. A instalação usa
+# devcon.exe (ferramenta oficial da Microsoft, já vem no pacote) direto no driver (MttVDD.inf, dispositivo
+# Root\MttVDD) — sem abrir a janela do VDD Control nem pedir clique dentro dela. O Windows pede a sua
+# aprovação de administrador uma vez (UAC), só para esse comando; o resto do programa roda sem privilégio.
 $drvUrl = 'https://github.com/VirtualDrivers/Virtual-Display-Driver/releases/download/25.7.23/VDD.Control.25.7.23.zip'
 $drvSha = 'a701f2272e9fcf382849b24f913c6dd07597b3b1116525f2e90182f019609154'
 $drvPasta = Join-Path $env:LOCALAPPDATA 'LazyCast\driver'
@@ -139,35 +152,45 @@ function Baixar-Driver([string]$zipLocal) {
     }
     Write-Host 'Arquivo verificado (SHA-256 confere).'
     $dest = Join-Path $drvPasta 'VDD'
-    $exe = Join-Path $dest 'VDD Control.exe'
-    # sempre extrai do zip verificado (um exe antigo/alterado na pasta nunca é reaproveitado)
+    $arco = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'ARM64' } else { 'x86' }   # 'x86' no pacote = build NTamd64 (confirmado no .inf)
+    $inf = Join-Path $dest "SignedDrivers\$arco\VDD\MttVDD.inf"
+    $devcon = Join-Path $dest 'Dependencies\devcon.exe'
+    # sempre extrai do zip verificado (arquivos antigos/alterados na pasta nunca são reaproveitados)
     if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
     Expand-Archive -Path $zip -DestinationPath $dest -Force
-    if (-not (Test-Path $exe)) { Write-Host 'ERRO: VDD Control.exe não está no pacote.'; exit 3 }
-    Write-Host $exe
+    if (-not (Test-Path $inf) -or -not (Test-Path $devcon)) { Write-Host 'ERRO: driver ou devcon.exe não estão no pacote.'; exit 3 }
+    Write-Host $inf
+    Write-Host $devcon
 }
 
-# Baixa, verifica e extrai o driver; devolve o caminho do VDD Control.exe ou $null (sem abrir nada).
+# Baixa, verifica e extrai o driver; devolve @{Inf=...; Devcon=...} ou $null (sem instalar nada ainda).
 function Preparar-Driver([scriptblock]$log) {
     $o = Rodar 'LazyCast-Windows.ps1' @('-Acao', 'baixar-driver') 900
     $linhas = @($o -split "`r?`n" | Where-Object { $_ })
-    $linhas | Select-Object -Last 2 | ForEach-Object { & $log $_ }
-    $exe = Join-Path $drvPasta 'VDD\VDD Control.exe'          # caminho remontado aqui, não lido da saída do filho
+    $linhas | Where-Object { $_ -notmatch '\\SignedDrivers\\|\\Dependencies\\' } | ForEach-Object { & $log $_ }
+    # caminhos remontados aqui, não lidos da saída do filho (não dependem da última linha)
+    $dest = Join-Path $drvPasta 'VDD'
+    $arco = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'ARM64' } else { 'x86' }
+    $inf = Join-Path $dest "SignedDrivers\$arco\VDD\MttVDD.inf"
+    $devcon = Join-Path $dest 'Dependencies\devcon.exe'
     if ($script:ultimoExit -ne 0) { & $log "Falha ao preparar o driver (código de saída $($script:ultimoExit))."; return $null }
-    if (-not (Test-Path -LiteralPath $exe)) { & $log 'Falha ao preparar o driver: VDD Control.exe não foi extraído.'; return $null }
-    return $exe
+    if (-not (Test-Path -LiteralPath $inf) -or -not (Test-Path -LiteralPath $devcon)) { & $log 'Falha ao preparar o driver: arquivos não foram extraídos.'; return $null }
+    return @{ Inf = $inf; Devcon = $devcon }
 }
 
 function Instalar-Driver([scriptblock]$log) {
     if (Driver-Instalado -Forcar) { & $log 'O driver já está instalado.'; return }
-    $r = [System.Windows.Forms.MessageBox]::Show("Vou baixar o Virtual Display Driver (68 MB) do GitHub oficial do projeto VirtualDrivers, versão 25.7.23, e conferir o SHA-256 antes de abrir.`n`nEm seguida o Windows vai pedir permissão de administrador para o instalador do driver. Continuar?", 'Instalar driver', 'YesNo', 'Question')
+    $r = [System.Windows.Forms.MessageBox]::Show("Vou baixar o Virtual Display Driver (68 MB) do GitHub oficial do projeto VirtualDrivers, versão 25.7.23, conferir o SHA-256 e instalar com o devcon.exe da Microsoft (sem abrir mais nenhuma janela).`n`nO Windows vai pedir permissão de administrador, só para esse comando. Continuar?", 'Instalar driver', 'YesNo', 'Question')
     if ($r -ne 'Yes') { & $log 'Instalação cancelada.'; return }
     & $log 'Baixando e verificando o driver (pode levar alguns minutos)...'
-    $exe = Preparar-Driver $log
-    if (-not $exe) { return }
-    & $log 'Abrindo o instalador (confirme o pedido de administrador do Windows)...'
-    try { Start-Process -FilePath $exe -Verb RunAs } catch { & $log 'Pedido de administrador negado ou cancelado.'; return }
-    & $log 'No programa que abriu, instale o driver. Depois volte aqui: o estado do driver atualiza sozinho.'
+    $p = Preparar-Driver $log
+    if (-not $p) { return }
+    & $log 'Instalando (confirme o pedido de administrador do Windows)...'
+    try {
+        $proc = Start-Process -FilePath $p.Devcon -ArgumentList 'install', "`"$($p.Inf)`"", 'Root\MttVDD' -Verb RunAs -Wait -PassThru -WindowStyle Hidden
+    } catch { & $log 'Pedido de administrador negado ou cancelado.'; return }
+    Start-Sleep 2
+    & $log $(if (Driver-Instalado -Forcar) { 'Driver instalado.' } else { "Não confirmei a instalação (devcon código $($proc.ExitCode)); reinicie o notebook e confira de novo." })
 }
 
 # Remove o driver com o pnputil (administrador: o Windows pede a sua aprovação).
@@ -177,17 +200,26 @@ function Desinstalar-Driver([scriptblock]$log) {
     if ($r -ne 'Yes') { & $log 'Desinstalação cancelada.'; return }
     & $log 'Parando o envio...'
     [void](Rodar 'estender-tela.ps1' @('-Parar') 30)
-    # acha o nome publicado (oemNN.inf) do pacote mttvdd.inf
-    $blocos = (pnputil /enum-drivers | Out-String) -split '(\r?\n){2,}'
-    $oem = $null
-    foreach ($b in $blocos) { if ($b -match 'mttvdd\.inf' -and $b -match '(oem\d+\.inf)') { $oem = $Matches[1]; break } }
-    if (-not $oem) { & $log 'Não encontrei o pacote do driver no Windows.'; return }
-    & $log "Removendo $oem (confirme o pedido de administrador)..."
-    try {
-        $proc = Start-Process -FilePath "$env:WINDIR\System32\pnputil.exe" -ArgumentList '/delete-driver', $oem, '/uninstall', '/force' -Verb RunAs -Wait -PassThru -WindowStyle Hidden
-    } catch { & $log 'Pedido de administrador negado ou cancelado.'; return }
+    $devcon = Join-Path $drvPasta 'VDD\Dependencies\devcon.exe'
+    if (Test-Path $devcon) {
+        & $log 'Removendo o driver com devcon.exe (confirme o pedido de administrador)...'
+        try {
+            $proc = Start-Process -FilePath $devcon -ArgumentList 'remove', 'Root\MttVDD' -Verb RunAs -Wait -PassThru -WindowStyle Hidden
+        } catch { & $log 'Pedido de administrador negado ou cancelado.'; return }
+    } else {
+        # devcon não está em cache (ex.: instalado numa versão antiga do programa): volta ao pnputil,
+        # achando o nome publicado (oemNN.inf) do pacote mttvdd.inf
+        & $log 'Removendo o driver com pnputil (confirme o pedido de administrador)...'
+        $blocos = (pnputil /enum-drivers | Out-String) -split '(\r?\n){2,}'
+        $oem = $null
+        foreach ($b in $blocos) { if ($b -match 'mttvdd\.inf' -and $b -match '(oem\d+\.inf)') { $oem = $Matches[1]; break } }
+        if (-not $oem) { & $log 'Não encontrei o pacote do driver no Windows.'; return }
+        try {
+            $proc = Start-Process -FilePath "$env:WINDIR\System32\pnputil.exe" -ArgumentList '/delete-driver', $oem, '/uninstall', '/force' -Verb RunAs -Wait -PassThru -WindowStyle Hidden
+        } catch { & $log 'Pedido de administrador negado ou cancelado.'; return }
+    }
     Start-Sleep 2
-    & $log $(if (Driver-Instalado -Forcar) { 'O driver ainda aparece instalado; reinicie o notebook ou use o VDD Control.' } else { 'Driver desinstalado.' })
+    & $log $(if (Driver-Instalado -Forcar) { 'O driver ainda aparece instalado; reinicie o notebook e confira de novo.' } else { 'Driver desinstalado.' })
 }
 
 function Miracast([string]$nome, [scriptblock]$log) {
@@ -215,6 +247,7 @@ if ($Acao) {
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
+
 
 $script:form = New-Object System.Windows.Forms.Form
 $f = $script:form
@@ -318,7 +351,44 @@ $btnDriver.Add_Click({ Ocupado $true; try { Instalar-Driver $logFn } finally { O
 $btnDesinst.Add_Click({ Ocupado $true; try { Desinstalar-Driver $logFn } finally { Ocupado $false } })
 $btnMira.Add_Click({ Miracast $txtNome.Text.Trim() $logFn })
 
+# ---- bandeja do sistema: minimizar deixa rodando (o envio continua); fechar/Sair para tudo de verdade
+# (encerra o envio e solta as telas virtuais — sem isso elas continuavam aparecendo em Configurações > Vídeo
+# mesmo sem ninguém usando o LazyCast).
+$notify = New-Object System.Windows.Forms.NotifyIcon
+$notify.Icon = [System.Drawing.SystemIcons]::Application
+$notify.Text = 'LazyCast para Windows'
+$menu = New-Object System.Windows.Forms.ContextMenuStrip
+$miAbrir = $menu.Items.Add('Abrir')
+$miSair = $menu.Items.Add('Sair (para o envio e solta as telas)')
+$notify.ContextMenuStrip = $menu
+$notify.Visible = $true
+
+function Restaurar { $f.Show(); $f.WindowState = 'Normal'; $f.Activate() }
+# Roda uma única vez (guardado por $script:finalizado), seja pelo X, pelo Sair da bandeja ou por Application.Exit.
+# NÃO chama $f.Close() aqui dentro: fazer isso de dentro do próprio FormClosing derruba o processo (reentrância).
+function Finalizar {
+    if ($script:finalizado) { return }
+    $script:finalizado = $true
+    $notify.Visible = $false
+    try { Desligar $logFn $false } catch {}   # só desanexa (rápido); não zera o driver, então "Ligar" volta na hora
+}
+$miAbrir.Add_Click({ Restaurar })
+$miSair.Add_Click({ Finalizar; $f.Close() })
+$notify.Add_DoubleClick({ Restaurar })
+$f.Add_Resize({
+    # BeginInvoke adia o Hide() para depois do Windows terminar de processar a minimização; chamar Hide()
+    # direto de dentro do próprio evento Resize derrubava o processo (testado: sem isso, crash em ~1-2s).
+    if ($f.WindowState -eq [System.Windows.Forms.FormWindowState]::Minimized) {
+        [void]$f.BeginInvoke([Action]{ $f.Hide() })
+    }
+})
+# Fechar a janela (X) também para tudo (para o envio e solta as telas), sem cancelar o fechamento em si.
+$f.Add_FormClosing({ Finalizar })
+
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 3000; $timer.Add_Tick({ if (-not $f.UseWaitCursor) { Atualizar } }); $timer.Start()
 Atualizar
-[void]$f.ShowDialog()
+# Application.Run (não ShowDialog): ShowDialog trata Hide() como se fosse fechar a janela e encerra o processo
+# inteiro ao minimizar para a bandeja — testado ao vivo (o app saía sem erro, ~1-2s depois de minimizar).
+$f.Add_FormClosed({ $notify.Visible = $false; $notify.Dispose() })
+[System.Windows.Forms.Application]::Run($f)
