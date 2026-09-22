@@ -650,9 +650,9 @@ class App:
         f2 = ttk.LabelFrame(root, text='2. Raspberry Pi')
         f2.grid(row=1, column=0, sticky='ew', **pad)
         ttk.Label(f2, text='Encontrados na rede (mesmo Wi-Fi/cabo deste PC):').grid(row=0, column=0, columnspan=2, sticky='w', padx=10, pady=(8, 0))
-        self.lst_pis = tk.Listbox(f2, height=3, width=44, exportselection=False)
-        self.lst_pis.grid(row=1, column=0, columnspan=2, sticky='w', padx=10, pady=(2, 6))
-        self.lst_pis.bind('<<ListboxSelect>>', self.on_selecionar_pi)
+        self.cmb_pis = ttk.Combobox(f2, width=42, state='readonly')
+        self.cmb_pis.grid(row=1, column=0, columnspan=2, sticky='w', padx=10, pady=(2, 6))
+        self.cmb_pis.bind('<<ComboboxSelected>>', self.on_selecionar_pi)
         self.btn_pi_atualizar = ttk.Button(f2, text='Atualizar lista', command=self.on_atualizar_lista)
         self.btn_pi_atualizar.grid(row=2, column=0, sticky='w', padx=10, pady=(0, 8))
         self.btn_pi_conectar = ttk.Button(f2, text='Conectar', command=self.on_conectar_pi, state='disabled')
@@ -660,10 +660,13 @@ class App:
         self.lbl_pi_conectado = ttk.Label(f2, text='Não conectado', foreground='#be2828')
         self.lbl_pi_conectado.grid(row=3, column=0, columnspan=2, sticky='w', padx=10, pady=(0, 8))
 
-        # ---- 3. Tela estendida (só funciona conectado a um Pi)
+        # ---- 3. Tela estendida (só funciona conectado a um Pi). "Telas" é um único número: o mesmo
+        # controla quantas telas virtuais o Windows cria/envia E quantas o Pi espera receber (Salvar no
+        # Pi grava aqui também) — ter dois números editáveis separados (um no Windows, outro no Pi) e
+        # deixá-los dessincronizar é a causa mais comum de "Tela 2 não aparece".
         f3 = ttk.LabelFrame(root, text='3. Tela estendida (cabo ou Wi-Fi)')
         f3.grid(row=2, column=0, sticky='ew', **pad)
-        ttk.Label(f3, text='Telas virtuais a enviar').grid(row=0, column=0, sticky='w', padx=10, pady=(8, 0))
+        ttk.Label(f3, text='Quantas telas (Windows e Pi)').grid(row=0, column=0, sticky='w', padx=10, pady=(8, 0))
         self.cmb_n = ttk.Combobox(f3, values=['1', '2'], width=5, state='readonly')
         self.cmb_n.set('2')
         self.cmb_n.grid(row=1, column=0, sticky='w', padx=10)
@@ -675,23 +678,19 @@ class App:
         ttk.Checkbutton(f3, text='Ao desligar, remover tambem os monitores do driver (so voltam apos reiniciar)',
                          variable=self.var_remover).grid(row=3, column=0, columnspan=2, sticky='w', padx=10, pady=(0, 8))
 
-        # ---- 4. Miracast (nome vem do Pi conectado; não duplica o campo da seção 5)
+        # ---- 4. Miracast — sem campo de nome (usa o Pi conectado na seção 2; nada pra digitar de novo)
         f4 = ttk.LabelFrame(root, text='4. Miracast (Transmitir do Windows)')
         f4.grid(row=3, column=0, sticky='ew', **pad)
-        ttk.Label(f4, text='Receptor (conecte a um Pi na seção 2)').grid(row=0, column=0, sticky='w', padx=10, pady=(8, 0))
-        self.txt_nome = ttk.Entry(f4, width=32, state='readonly')
-        self.txt_nome.grid(row=1, column=0, sticky='w', padx=10, pady=(0, 8))
-        ttk.Button(f4, text='Conectar', command=self.on_miracast).grid(row=1, column=1, padx=10)
+        self.lbl_miracast = ttk.Label(f4, text='Conecte a um Pi na seção 2 primeiro.', foreground='#666666')
+        self.lbl_miracast.grid(row=0, column=0, sticky='w', padx=10, pady=8)
+        ttk.Button(f4, text='Conectar', command=self.on_miracast).grid(row=0, column=1, padx=10)
 
         # ---- 5. Configurações do Pi (só editável depois de Conectar na seção 2)
         f5 = ttk.LabelFrame(root, text='5. Configurações do Pi (nome, PIN, fonte de cada tela)')
         f5.grid(row=4, column=0, sticky='ew', **pad)
         ttk.Label(f5, text='Nome da rede').grid(row=0, column=0, sticky='w', padx=10, pady=(8, 0))
-        ttk.Label(f5, text='Telas no Pi').grid(row=0, column=1, sticky='w', padx=10, pady=(8, 0))
         self.txt_pi_nome = ttk.Entry(f5, width=22, state='disabled')
         self.txt_pi_nome.grid(row=1, column=0, sticky='w', padx=10)
-        self.cmb_pi_modo = ttk.Combobox(f5, values=['1', '2'], width=5, state='disabled')
-        self.cmb_pi_modo.grid(row=1, column=1, sticky='w', padx=10)
         ttk.Label(f5, text='Tela 1 vem de').grid(row=2, column=0, sticky='w', padx=10, pady=(8, 0))
         ttk.Label(f5, text='Tela 2 vem de').grid(row=2, column=1, sticky='w', padx=10, pady=(8, 0))
         fontes = ['auto (sem fio/Miracast)', 'stream:5004 (Windows, rede)', 'stream:5006 (Windows, rede)']
@@ -831,9 +830,7 @@ class App:
 
     def _preencher_lista(self, achados):
         self._pis_lista = achados
-        self.lst_pis.delete(0, 'end')
-        for p in achados:
-            self.lst_pis.insert('end', f"{p['nome']}  ({p['ip']})")
+        self.cmb_pis.configure(values=[f"{p['nome']}  ({p['ip']})" for p in achados])
         self.btn_pi_atualizar.configure(state='normal')
         self.log(f'{len(achados)} Raspberry Pi encontrado(s) na rede.' if achados else
                   'Nenhum Raspberry Pi com o LazyCast encontrado na rede (tente Atualizar lista de novo).')
@@ -841,59 +838,59 @@ class App:
         ultimo = ler(IP_FILE)
         for i, p in enumerate(achados):
             if p['ip'] == ultimo:
-                self.lst_pis.selection_set(i)
-                self.lst_pis.see(i)
+                self.cmb_pis.current(i)
                 self.on_selecionar_pi(None)
                 break
 
     def on_selecionar_pi(self, event):
-        sel = self.lst_pis.curselection()
-        if not sel:
+        i = self.cmb_pis.current()
+        if i < 0:
             self.btn_pi_conectar.configure(state='disabled')
             return
-        escolhido = self._pis_lista[sel[0]]
+        escolhido = self._pis_lista[i]
         self.btn_pi_conectar.configure(state='normal')
         if not self.pi_conectado or self.pi_conectado['ip'] != escolhido['ip']:
             self._bloquear_widgets()  # trocou de Pi na lista: precisa clicar Conectar de novo
 
     def on_conectar_pi(self):
-        sel = self.lst_pis.curselection()
-        if not sel:
+        i = self.cmb_pis.current()
+        if i < 0:
             return
-        alvo = self._pis_lista[sel[0]]
+        alvo = self._pis_lista[i]
 
-        def fazer():
-            try:
-                cfg = buscar_config_pi(alvo['ip'])
-            except (OSError, ValueError) as e:
-                self.log(f"Não consegui conectar a {alvo['ip']}: {e}")
-                return
+        def ao_sucesso(cfg):
             nome = cfg.get('DISPLAY1_NAME') or alvo['nome']
             self.pi_conectado = {'ip': alvo['ip'], 'nome': nome}
             IP_FILE.write_text(alvo['ip'])
-            self.root.after(0, lambda: self._desbloquear_widgets(cfg))
+            self._desbloquear_widgets(cfg)
             self.log(f"Conectado a {nome} ({alvo['ip']}).")
+        self._buscar_config(alvo['ip'], ao_sucesso, verbo='conectar a')
+
+    def _buscar_config(self, ip, ao_sucesso, verbo='conectar a'):
+        """Busca a config do Pi em segundo plano; chama ao_sucesso(cfg) na thread da UI se der certo.
+        Usada tanto por Conectar quanto por Recarregar — evita repetir o mesmo try/except duas vezes."""
+        def fazer():
+            try:
+                cfg = buscar_config_pi(ip)
+            except (OSError, ValueError) as e:
+                self.log(f'Não consegui {verbo} ({ip}): {e}')
+                return
+            self.root.after(0, lambda: ao_sucesso(cfg))
         self._rodar_bg(fazer)
 
     def on_recarregar_config_pi(self):
         if not self.pi_conectado:
             return
-        ip = self.pi_conectado['ip']
 
-        def fazer():
-            try:
-                cfg = buscar_config_pi(ip)
-            except (OSError, ValueError) as e:
-                self.log(f'Não consegui buscar as configurações do Pi ({ip}): {e}')
-                return
-            self.root.after(0, lambda: self._preencher_config_pi(cfg))
+        def ao_sucesso(cfg):
+            self._preencher_config_pi(cfg)
             self.log('Configurações do Pi atualizadas aqui.')
-        self._rodar_bg(fazer)
+        self._buscar_config(self.pi_conectado['ip'], ao_sucesso, verbo='buscar as configurações do Pi')
 
     def _preencher_config_pi(self, cfg):
         self.txt_pi_nome.delete(0, 'end')
         self.txt_pi_nome.insert(0, cfg.get('DISPLAY1_NAME', ''))
-        self.cmb_pi_modo.set(cfg.get('DISPLAY_MODE', '1'))
+        self.cmb_n.set(cfg.get('DISPLAY_MODE', '2'))  # "quantas telas" é um único número (seção 3), não duplicado aqui
         for combo, chave in ((self.cmb_pi_fonte1, 'SCREEN1_SOURCE'), (self.cmb_pi_fonte2, 'SCREEN2_SOURCE')):
             raw = cfg.get(chave, 'auto')
             idx = self._FONTES_RAW.index(raw) if raw in self._FONTES_RAW else 0
@@ -902,16 +899,15 @@ class App:
         self.cmb_pi_auth.set(self._AUTH_TXT[self._AUTH_RAW.index(auth)] if auth in self._AUTH_RAW else self._AUTH_TXT[0])
         self.txt_pi_pin.delete(0, 'end')
         self.txt_pi_pin.insert(0, cfg.get('LAZYCAST_PIN', ''))
-        self.cmb_n.set(cfg.get('DISPLAY_MODE', '2'))  # sugestão: enviar o mesmo nº de telas que o Pi tem (editável)
 
     def _bloquear_widgets(self):
         self.pi_conectado = None
         for w in (self.btn_pi_recarregar, self.btn_pi_salvar):
             w.configure(state='disabled')
-        for w in (self.txt_pi_nome, self.cmb_pi_modo, self.cmb_pi_fonte1, self.cmb_pi_fonte2, self.cmb_pi_auth, self.txt_pi_pin):
+        for w in (self.txt_pi_nome, self.cmb_pi_fonte1, self.cmb_pi_fonte2, self.cmb_pi_auth, self.txt_pi_pin):
             w.configure(state='disabled')
-        self.txt_nome.configure(state='normal'); self.txt_nome.delete(0, 'end'); self.txt_nome.configure(state='readonly')
         self.lbl_pi_conectado.configure(text='Não conectado', foreground='#be2828')
+        self.lbl_miracast.configure(text='Conecte a um Pi na seção 2 primeiro.')
         self.atualizar()  # Ligar também depende de pi_conectado
 
     def _desbloquear_widgets(self, cfg=None):
@@ -919,17 +915,14 @@ class App:
             w.configure(state='normal')
         for w in (self.txt_pi_nome, self.txt_pi_pin):
             w.configure(state='normal')
-        for w in (self.cmb_pi_modo, self.cmb_pi_fonte1, self.cmb_pi_fonte2, self.cmb_pi_auth):
+        for w in (self.cmb_pi_fonte1, self.cmb_pi_fonte2, self.cmb_pi_auth):
             w.configure(state='readonly')
         if cfg:
             self._preencher_config_pi(cfg)
         if self.pi_conectado:
-            self.txt_nome.configure(state='normal')
-            self.txt_nome.delete(0, 'end')
-            self.txt_nome.insert(0, self.pi_conectado['nome'])
-            self.txt_nome.configure(state='readonly')
             self.lbl_pi_conectado.configure(text=f"Conectado a {self.pi_conectado['nome']} ({self.pi_conectado['ip']})",
                                              foreground='#1e8236')
+            self.lbl_miracast.configure(text=f"Conectar abre o Transmitir do Windows; escolha \"{self.pi_conectado['nome']}\".")
         self.atualizar()
 
     def on_salvar_config_pi(self):
@@ -938,7 +931,7 @@ class App:
         ip = self.pi_conectado['ip']
         campos = {
             'DISPLAY1_NAME': self.txt_pi_nome.get().strip(),
-            'DISPLAY_MODE': self.cmb_pi_modo.get() or '1',
+            'DISPLAY_MODE': self.cmb_n.get() or '1',
             'SCREEN1_SOURCE': self._FONTES_RAW[self._FONTES_TXT.index(self.cmb_pi_fonte1.get())] if self.cmb_pi_fonte1.get() in self._FONTES_TXT else 'auto',
             'SCREEN2_SOURCE': self._FONTES_RAW[self._FONTES_TXT.index(self.cmb_pi_fonte2.get())] if self.cmb_pi_fonte2.get() in self._FONTES_TXT else 'auto',
             'LAZYCAST_AUTH': self._AUTH_RAW[self._AUTH_TXT.index(self.cmb_pi_auth.get())] if self.cmb_pi_auth.get() in self._AUTH_TXT else 'pbc',
