@@ -367,7 +367,7 @@ def health_checks(cfg=None):
         elif kind == 'stream':
             ok = stream_alive(rtp_port(cfg, k))
             checks.append(('Tela %d: fluxo de rede (porta %s)' % (k + 1, val), ok,
-                           '' if ok else 'Nada chegando. No Windows, rode estender-iniciar.bat (IP do Pi: %s).' % (pi_address() or '?')))
+                           '' if ok else 'Nada chegando. No Windows, abra o LazyCast.exe (ou LazyCast.bat) e clique em Conectar/Ligar tela virtual (IP do Pi: %s).' % (pi_address() or '?')))
     if not wireless_screens(cfg, nscreens):
         return checks
     code, out = sudo(['wpa_cli', 'interface'])
