@@ -3,11 +3,22 @@
 Cria até **duas telas virtuais** no Windows e envia cada uma pela rede (Wi-Fi ou Ethernet) para o Raspberry Pi,
 que as mostra na Tela 1 e na Tela 2 (ou na prévia do painel, se não houver monitor HDMI).
 
-## Programa: `LazyCast.exe`
+## Programa: `LazyCast.exe` (ou `LazyCast.bat`)
 
 Dê dois cliques em `LazyCast.exe`. É um `.exe` de verdade (escrito em Python, compilado com PyInstaller) —
 não abre PowerShell nem console nenhum, e aparece como `LazyCast` no Gerenciador de Tarefas, não como
 `powershell.exe`/`python.exe`. Não precisa instalar Python nem nada a mais para *usar* o programa.
+
+**Se o Windows bloquear o `.exe`** ("Windows protegeu o computador" ou "Gerenciado pelo Controle de
+Inteligência de Aplicativos"): é porque o arquivo não tem assinatura digital paga, comum em programas
+pequenos como este. Duas saídas:
+- SmartScreen normal (tem botão "Mais informações"): clique nele e depois em "Executar assim mesmo". Ou:
+  botão direito no `LazyCast.exe` → Propriedades → marque "Desbloquear" → Aplicar.
+- **Controle de Inteligência de Aplicativos** (só tem "OK"/"Buscar na Microsoft Store", sem exceção por
+  app): desligar esse recurso é definitivo até reinstalar o Windows, então em vez disso use
+  `LazyCast.bat` — ele abre o mesmo programa via `pythonw` (assinado pela Python Software Foundation, que
+  o Controle de Inteligência não bloqueia). Precisa do [Python 3](https://python.org) instalado (marque
+  "Add to PATH" no instalador) e, uma vez, `pip install -r requirements.txt` nesta pasta.
 
 Na janela:
 
