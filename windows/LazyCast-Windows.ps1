@@ -237,6 +237,7 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
+
 $script:form = New-Object System.Windows.Forms.Form
 $f = $script:form
 $f.Text = 'LazyCast para Windows'; $f.StartPosition = 'CenterScreen'; $f.ClientSize = New-Object System.Drawing.Size(540, 600)
@@ -339,7 +340,44 @@ $btnDriver.Add_Click({ Ocupado $true; try { Instalar-Driver $logFn } finally { O
 $btnDesinst.Add_Click({ Ocupado $true; try { Desinstalar-Driver $logFn } finally { Ocupado $false } })
 $btnMira.Add_Click({ Miracast $txtNome.Text.Trim() $logFn })
 
+# ---- bandeja do sistema: minimizar deixa rodando (o envio continua); fechar/Sair para tudo de verdade
+# (encerra o envio e solta as telas virtuais — sem isso elas continuavam aparecendo em Configurações > Vídeo
+# mesmo sem ninguém usando o LazyCast).
+$notify = New-Object System.Windows.Forms.NotifyIcon
+$notify.Icon = [System.Drawing.SystemIcons]::Application
+$notify.Text = 'LazyCast para Windows'
+$menu = New-Object System.Windows.Forms.ContextMenuStrip
+$miAbrir = $menu.Items.Add('Abrir')
+$miSair = $menu.Items.Add('Sair (para o envio e solta as telas)')
+$notify.ContextMenuStrip = $menu
+$notify.Visible = $true
+
+function Restaurar { $f.Show(); $f.WindowState = 'Normal'; $f.Activate() }
+# Roda uma única vez (guardado por $script:finalizado), seja pelo X, pelo Sair da bandeja ou por Application.Exit.
+# NÃO chama $f.Close() aqui dentro: fazer isso de dentro do próprio FormClosing derruba o processo (reentrância).
+function Finalizar {
+    if ($script:finalizado) { return }
+    $script:finalizado = $true
+    $notify.Visible = $false
+    try { Desligar $logFn $false } catch {}   # só desanexa (rápido); não zera o driver, então "Ligar" volta na hora
+}
+$miAbrir.Add_Click({ Restaurar })
+$miSair.Add_Click({ Finalizar; $f.Close() })
+$notify.Add_DoubleClick({ Restaurar })
+$f.Add_Resize({
+    # BeginInvoke adia o Hide() para depois do Windows terminar de processar a minimização; chamar Hide()
+    # direto de dentro do próprio evento Resize derrubava o processo (testado: sem isso, crash em ~1-2s).
+    if ($f.WindowState -eq [System.Windows.Forms.FormWindowState]::Minimized) {
+        [void]$f.BeginInvoke([Action]{ $f.Hide() })
+    }
+})
+# Fechar a janela (X) também para tudo (para o envio e solta as telas), sem cancelar o fechamento em si.
+$f.Add_FormClosing({ Finalizar })
+
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 3000; $timer.Add_Tick({ if (-not $f.UseWaitCursor) { Atualizar } }); $timer.Start()
 Atualizar
-[void]$f.ShowDialog()
+# Application.Run (não ShowDialog): ShowDialog trata Hide() como se fosse fechar a janela e encerra o processo
+# inteiro ao minimizar para a bandeja — testado ao vivo (o app saía sem erro, ~1-2s depois de minimizar).
+$f.Add_FormClosed({ $notify.Visible = $false; $notify.Dispose() })
+[System.Windows.Forms.Application]::Run($f)
