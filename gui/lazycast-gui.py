@@ -144,7 +144,10 @@ class HomePage(Gtk.Box):
         for c in ('dot-ok', 'dot-warn', 'dot-bad', 'dot-off'):
             ctx.remove_class(c)
         ctx.add_class(css)
-        if st['state'] == 'connected':
+        if st['state'] == 'connected' and st['stations']:
+            # 'connected' também é verdade com uma tela com fio/rede conectada e nenhuma estação Wi-Fi
+            # Direct (st['stations'] vazio nesse caso) — sem essa condição, o título virava
+            # "0 aparelhos conectados", que é enganoso quando a conexão real é por USB/rede.
             n = len(st['stations'])
             title = '%d aparelho%s conectado%s' % (n, '' if n == 1 else 's', '' if n == 1 else 's')
         self.state_title.set_text(title)
@@ -169,7 +172,7 @@ class HomePage(Gtk.Box):
             else:
                 detail.set_text({'usb': 'Fonte: ' + slot.get('label', 'USB'), 'stream': 'Fonte: ' + slot.get('label', 'rede')}.get(kind, ''))
         if st.get('wired_only') and st['state'] == 'ready':
-            self.state_sub.set_text('As telas estão em entradas com fio: ligue a capturadora ou rode estender-iniciar.bat no Windows.')
+            self.state_sub.set_text('As telas estão em entradas com fio: ligue a capturadora ou conecte pelo LazyCast.exe no Windows.')
         running = st['state'] in ('ready', 'connected', 'starting')
         self.btn_toggle.set_label('Parar' if running else 'Iniciar')
         self.btn_view.set_sensitive(running)
@@ -326,7 +329,7 @@ class SettingsPage(Gtk.ScrolledWindow):
         src_box.pack_start(self.pi_ip, False, False, 0)
         outer.pack_start(self.section('Fonte de cada tela',
                                       'Sem fio, capturadora HDMI→USB (em qualquer porta USB) ou a tela estendida do Windows pela rede '
-                                      '(rode estender-iniciar.bat no Windows).', src_box), False, False, 0)
+                                      '(abra o LazyCast.exe no Windows e clique em Conectar).', src_box), False, False, 0)
 
         # Segurança
         self.sw_pin = Gtk.Switch()
