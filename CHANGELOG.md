@@ -12,6 +12,7 @@
 
 ### Removido
 - `d2-multi.py`: era a versão original (pré-refatoração) do receiver dual display, com `--instance`/`load_config()` próprios; `all.sh`/`all-dual.sh` já usam `d2.py` (com `LAZYCAST_RTP_PORT`/`LAZYCAST_SCREEN`/etc. por variável de ambiente) para as duas telas há tempos, então `d2-multi.py` nunca era executado de verdade — só um teste de integração validava um caminho morto.
+- `control/` (control.c, controlhidc.c, keyboardonly.c) e o `Makefile` de topo: o UIBC de mouse/teclado real é 100% Python via `evdev` dentro de `d2.py` (confirmado: `control.bin`/`controlhidc.bin` nunca eram executados, só copiados por `all-dual.sh` e mortos defensivamente por `d2.py`). O `install.sh` ainda compilava e exigia `libx11-dev`/`build-essential` só para produzir binários nunca usados — e uma falha nesse `make` (que nunca faz falta) abortava a instalação inteira. `xrandr`/`x11-xserver-utils` (dependência do X11, nunca usado — o projeto é Wayland/labwc) também saiu da lista de dependências.
 
 ## [Versão 2.4] - Correções de Bugs e Melhorias de Estabilidade
 

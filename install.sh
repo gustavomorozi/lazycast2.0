@@ -51,21 +51,17 @@ fi
 cd "$(dirname "$0")" || exit 1
 chmod +x ./*.sh ./*.py 2>/dev/null
 
-# Dependências (Raspberry Pi OS Bookworm / Pi 5). Sem elas o make do control falha (libx11-dev)
-# ou o receptor não sobe (busybox = udhcpd, vlc = player, wpa_cli = P2P).
+# Dependências (Raspberry Pi OS Bookworm / Pi 5): sem elas o receptor não sobe (busybox = udhcpd,
+# vlc = player, wpa_cli = P2P).
 missing_pkgs=()
-command -v gcc >/dev/null 2>&1 || missing_pkgs+=(build-essential)
-command -v make >/dev/null 2>&1 || missing_pkgs+=(make)
 command -v wpa_cli >/dev/null 2>&1 || missing_pkgs+=(wpasupplicant)
 command -v busybox >/dev/null 2>&1 || missing_pkgs+=(busybox)
 command -v vlc >/dev/null 2>&1 || missing_pkgs+=(vlc)
 command -v python3 >/dev/null 2>&1 || missing_pkgs+=(python3)
 command -v iw >/dev/null 2>&1 || missing_pkgs+=(iw)
 python3 -c "import gi; gi.require_version('Gtk', '3.0')" >/dev/null 2>&1 || missing_pkgs+=(python3-gi gir1.2-gtk-3.0)
-command -v xrandr >/dev/null 2>&1 || missing_pkgs+=(x11-xserver-utils)
 python3 -c "import evdev" >/dev/null 2>&1 || missing_pkgs+=(python3-evdev)
 command -v notify-send >/dev/null 2>&1 || missing_pkgs+=(libnotify-bin)
-dpkg -s libx11-dev >/dev/null 2>&1 || missing_pkgs+=(libx11-dev)
 if [ ${#missing_pkgs[@]} -gt 0 ]; then
     echo "Pacotes ausentes: ${missing_pkgs[*]}"
     echo "Instalando automaticamente..."
@@ -300,21 +296,6 @@ if [ "$DISPLAY_MODE" = "2" ] && [ "$P2P_ADAPTERS" -lt 2 ]; then
     echo "  entram no mesmo Wi-Fi do Pi (a 1ª conectada vai para o Display 1, a 2ª para o Display 2)."
     echo "  Para dois grupos independentes, plugue um adaptador USB compatível (qualquer porta):"
     echo "  iw phy | grep -A9 'Supported interface modes' deve listar P2P-client e P2P-GO."
-fi
-
-# Compilar o projeto
-echo ""
-echo "Compilando o projeto..."
-
-# control (HID/teclado) é necessário em todos os modos
-make -C control/.
-CONTROL_OK=$?
-
-if [ "$CONTROL_OK" -eq 0 ]; then
-    echo "✓ Compilação concluída com sucesso"
-else
-    echo "✗ Erro na compilação"
-    exit 1
 fi
 
 # Garantir que o usuário do serviço consiga gravar logs e configs

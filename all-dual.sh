@@ -111,13 +111,11 @@ start_display_instance() {
 
     # Criar diretório temporário para esta instância
     local instance_dir="$BASE_DIR/lazycast_instance_$interface_suffix"
-    mkdir -p "$instance_dir/control"
+    mkdir -p "$instance_dir"
     cd "$instance_dir" || return 1
 
-    # Copiar arquivos necessários (d2.py espera os binários em ./control)
+    # Copiar arquivo necessário
     cp "$BASE_DIR/d2.py" .
-    cp "$BASE_DIR/control/control.bin" control/ 2>/dev/null || true
-    cp "$BASE_DIR/control/controlhidc.bin" control/ 2>/dev/null || true
 
     # Modificar configurações no d2.py
     sed -i "s/^player_select = .*/player_select = $player_select/" d2.py

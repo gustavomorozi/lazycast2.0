@@ -29,68 +29,29 @@ bash -n install.sh
 ## Teste em Hardware Real (Raspberry Pi)
 
 ### Pré-requisitos
-- Raspberry Pi (preferencialmente Pi 5 para dual display)
-- Raspberry Pi OS (Legacy, 32-bit)
+- Raspberry Pi 5 (único modelo suportado)
+- Raspberry Pi OS Bookworm (64-bit)
 - Fonte de alimentação adequada
 - Cabo HDMI conectado a monitor/TV
 - Dispositivo Windows 10/11 ou Android para teste
 
 ### Passo a Passo de Teste
 
-#### 1. Preparação do Sistema
+#### 1. Instalação
 ```bash
-# Atualizar sistema
-sudo apt update && sudo apt upgrade -y
-
-# Instalar dependências básicas
-sudo apt install python3 python3-pip git cmake -y
-
-# Instalar dependências do LazyCast
-sudo apt install libx11-dev libasound2-dev libavformat-dev libavcodec-dev python3-evdev -y
-
-# Clonar repositório
 cd ~/
 git clone https://github.com/gustavomorozi/lazycast2.0
 cd lazycast2.0
-```
 
-#### 2. Compilação
-```bash
-# Compilar bibliotecas do sistema
-cd /opt/vc/src/hello_pi/libs/ilclient/
-sudo make
-cd /opt/vc/src/hello_pi/hello_video
-sudo make
-
-# Compilar LazyCast
-cd ~/lazycast2.0
-make
-```
-
-#### 3. Configuração de HDMI (Pi 5)
-```bash
-# Executar script de configuração HDMI
-sudo ./setup-hdmi.sh
-
-# Reboot
-sudo reboot
-```
-
-#### 4. Instalação e Configuração
-```bash
-cd ~/lazycast2.0
-
-# Executar instalador
+# O instalador cuida de tudo sozinho: instala as dependências via apt, ajusta permissões,
+# configura o HDMI (dual display no Pi 5) e instala o serviço systemd.
 sudo ./install.sh
 
-# Escolher opções:
-# - Modo: Single Display (1) ou Dual Display (2)
-# - Nomes dos displays
-# - Player: player2 (recomendado)
-# - Áudio: ALSA (2)
+# Escolha modo (Single/Dual Display), nomes dos displays e saída de áudio quando perguntado.
+# --yes instala sem perguntas (padrões: single display); --dual escolhe dual display.
 ```
 
-#### 5. Teste de Ambiente
+#### 2. Teste de Ambiente
 ```bash
 # Verificar se ambiente está pronto
 ./test-environment.sh
@@ -102,7 +63,7 @@ sudo ./install.sh
 ./test-syntax.sh
 ```
 
-#### 6. Teste Manual (Single Display)
+#### 3. Teste Manual (Single Display)
 ```bash
 # Iniciar LazyCast manualmente
 ./all.sh
@@ -114,11 +75,11 @@ sudo ./install.sh
 - Sem erros visíveis no terminal
 - Interface WiFi P2P é criada
 
-#### 7. Teste de Conexão
+#### 4. Teste de Conexão
 1. No dispositivo Windows:
    - Abrir "Configurações" > "Sistema" > "Tela" > "Conectar a um display sem fio"
    - Procurar pelo nome do display configurado
-   - Conectar sem PIN (sistema foi removido)
+   - Por padrão (`LAZYCAST_AUTH=pbc`) conecta sem digitar PIN; se `LAZYCAST_AUTH=pin` estiver ativo, use o PIN de `LAZYCAST_PIN` no `lazycast-config.conf`
 
 2. No dispositivo Android:
    - Abrir "Configurações" > "Tela" > "Cast"
@@ -131,7 +92,7 @@ sudo ./install.sh
 - Áudio é reproduzido corretamente
 - Latência é aceitável (<500ms)
 
-#### 8. Teste de Dual Display (Pi 5)
+#### 5. Teste de Dual Display (Pi 5)
 ```bash
 # Parar instância single se estiver rodando
 # Ctrl+C no terminal do all.sh
@@ -147,7 +108,7 @@ sudo ./install.sh
 - Conexão simultânea funciona
 - Cada display em HDMI diferente
 
-#### 9. Teste de Serviço Automático
+#### 6. Teste de Serviço Automático
 ```bash
 # Instalar serviço systemd
 sudo ./install-service.sh
@@ -174,8 +135,8 @@ sudo reboot
 # Deixar rodando por várias horas
 ./all.sh
 
-# Monitorar com health check
-./player_health_check.sh
+# Monitorar o estado
+./lazycast-status.sh
 
 # Verificar logs periodicamente
 tail -f lazycast-background.log
@@ -211,10 +172,11 @@ tail -f lazycast-background.log
 
 #### Se player parar:
 ```bash
-# Verificar saúde do player
-./player_health_check.sh
+# Verificar o estado
+./lazycast-status.sh
 
-# O sistema deve reiniciar automaticamente
+# O serviço reinicia sozinho (Restart=on-failure); se não subir, veja o log
+journalctl -u lazycast -n 50
 ```
 
 #### Se WiFi não funcionar:
@@ -258,7 +220,7 @@ Resultados:
 - [✓/✗] Sintaxe Python
 - [✓/✗] Sintaxe Bash  
 - [✓/✗] Ambiente do sistema
-- [✓/✗] Compilação
+- [✓/✗] Instalação (install.sh)
 - [✓/✗] Inicialização manual
 - [✓/✗] Conexão Windows
 - [✓/✗] Conexão Android
