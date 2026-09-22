@@ -95,6 +95,12 @@ eq "1 monitor + 1 tela: janela (tela cheia padrão)" "$LAZYCAST_VLC_MODE" "windo
 unset LAZYCAST_FULLSCREEN
 setup_vlc_output 2 >/dev/null
 eq "1 monitor + 2 telas: layout aplicado (sem --fullscreen)" "$LAZYCAST_FULLSCREEN" "0"
+R="$XDG_CONFIG_HOME/labwc/rc.xml"
+grep -A1 'title="LazyCast-1"' "$R" | grep -q 'output="HDMI-A-1"' &&
+grep -A1 'title="LazyCast-2"' "$R" | grep -q 'output="HDMI-A-1"' &&
+grep -q 'ToggleFullscreen' "$R" && ! grep -q 'MoveTo x' "$R" &&
+    ok "1 monitor + 2 telas: as duas em tela cheia no mesmo monitor (não divide)" ||
+    bad "1 monitor + 2 telas deveria dar tela cheia, não dividir" "$(cat "$R")"
 unset -f command pgrep kill sleep wlr-randr
 
 # --- fonte de cada tela (sem fio / capturadora USB / fluxo de rede)

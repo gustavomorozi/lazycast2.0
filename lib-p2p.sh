@@ -230,9 +230,12 @@ write_vlc_layout() {
     [ "${#outs[@]}" -gt 0 ] || return 1
     mapfile -t real < <(printf '%s\n' "${outs[@]}" | grep -v '^NOOP' | sort -k4,4n)
 
-    if [ "${#real[@]}" -ge "$slots" ]; then
+    if [ "${#real[@]}" -ge 1 ]; then
+        # Há pelo menos um monitor HDMI real: cada tela vai em tela cheia (nunca dividida). Com menos monitores
+        # que telas, mais de uma tela mira no mesmo monitor (ex.: 1 monitor + 2 telas): a que estiver por cima
+        # ocupa a tela toda; não reduzimos a janela para caber as duas lado a lado.
         for ((i = 0; i < slots; i++)); do
-            read -r name w h x y <<< "${real[$i]}"
+            read -r name w h x y <<< "${real[$((i % ${#real[@]}))]}"
             rules+="    <windowRule title=\"LazyCast-$((i + 1))\">
       <action name=\"MoveToOutput\" output=\"$name\"/>
       <action name=\"ToggleFullscreen\"/>
@@ -240,7 +243,9 @@ write_vlc_layout() {
 "
         done
     else
-        if [ "${#real[@]}" -ge 1 ]; then read -r name w h x y <<< "${real[0]}"; else read -r name w h x y <<< "${outs[0]}"; fi
+        # Nenhum monitor real (só a saída virtual do VNC): tela cheia não faz sentido para administração remota,
+        # então divide em blocos pequenos lado a lado para dar para ver as duas ao mesmo tempo.
+        read -r name w h x y <<< "${outs[0]}"
         ww=$((w / slots)); hh=$((ww * 9 / 16))
         [ "$hh" -gt $((h - panel)) ] && { hh=$((h - panel)); ww=$((hh * 16 / 9)); }
         for ((i = 0; i < slots; i++)); do
