@@ -11,7 +11,7 @@ param(
     [int]$Telas = 2,
     [int[]]$Portas = @(5004, 5006),
     [int]$Fps = 30,
-    [string]$Bitrate = '6M',
+    [string]$Bitrate = '3M',   # 6M causava perda de pacote e travadinhas no Wi-Fi 2.4GHz (testado); por cabo dá pra subir
     [ValidateSet('auto', 'qsv', 'nvenc', 'x264')][string]$Encoder = 'auto'
 )
 $pasta = $PSScriptRoot

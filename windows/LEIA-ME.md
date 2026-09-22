@@ -42,7 +42,8 @@ Os passos abaixo (`.bat` separados) continuam valendo se preferir linha de coman
 - **Cabo ou Wi-Fi (roteador):** funciona nos dois. O painel do Pi (Configurações > Fonte de cada tela) mostra o IP de
   cada interface, por exemplo `Cabo 192.168.0.50 · Wi-Fi 192.168.0.43`. Use o IP da conexão que o PC também usa.
   O script aceita os dois IPs e escolhe o primeiro que responde: `estender-tela.ps1 -Pi 192.168.0.50,192.168.0.43`.
-  Por cabo o vídeo tem mais folga: dá para usar `-Bitrate 12M`. Em Wi-Fi de 2,4 GHz prefira `-Fps 15` ou `-Bitrate 4M`.
+  **Padrão agora é 3 Mbps** (`-Bitrate 3M`): testado no Wi-Fi 2,4 GHz — com 6 Mbps apareciam perdas de pacote
+  (travadinhas/atraso), com 3 Mbps não. Por cabo dá mais folga: `-Bitrate 12M`. Wi-Fi fraco: tente `-Fps 15` ou `-Bitrate 2M`.
   Cabo direto PC↔Pi (sem roteador): configure IPs fixos nos dois lados, na mesma faixa (ex.: 10.0.0.1 e 10.0.0.2).
 - Logs: `estender-tela1.log` e `estender-tela2.log` nesta pasta.
 - Para desfazer: `estender-parar.bat` e desinstale o driver pelo "VDD Control". Uma cópia do
