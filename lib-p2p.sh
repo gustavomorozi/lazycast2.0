@@ -245,13 +245,23 @@ write_vlc_layout() {
         for ((i = 0; i < slots; i++)); do
             name="HDMI-A-$((i + 1))"
             if [ -n "${presentes[$name]:-}" ]; then
+                # LazyCast-Fundo-N (placeholder "Tela N aguardando conexão", wired-input.sh) vai sempre atrás:
+                # some por baixo assim que o vídeo real da tela aparecer, e reaparece se ele sumir de novo.
                 rules+="    <windowRule title=\"LazyCast-$((i + 1))\">
       <action name=\"MoveToOutput\" output=\"$name\"/>
       <action name=\"ToggleFullscreen\"/>
     </windowRule>
+    <windowRule title=\"LazyCast-Fundo-$((i + 1))\">
+      <action name=\"MoveToOutput\" output=\"$name\"/>
+      <action name=\"ToggleFullscreen\"/>
+      <action name=\"ToggleAlwaysOnBottom\"/>
+    </windowRule>
 "
             else
                 rules+="    <windowRule title=\"LazyCast-$((i + 1))\">
+      <action name=\"Iconify\"/>
+    </windowRule>
+    <windowRule title=\"LazyCast-Fundo-$((i + 1))\">
       <action name=\"Iconify\"/>
     </windowRule>
 "
