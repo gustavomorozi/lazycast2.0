@@ -160,7 +160,6 @@ test_all_dual_sh() {
     echo ""
     echo "== all-dual.sh com wpa_cli/udhcpd simulados =="
     local dir; dir=$(make_sandbox dual)
-    echo "bin" > "$dir/h264/h264.bin"
     cat > "$dir/lazycast-config.conf" <<'EOF'
 DISPLAY_MODE=2
 DISPLAY1_NAME="TelaA"
@@ -177,7 +176,11 @@ DISPLAY2_SOUND_OUTPUT=1
 DISPLAY2_PLAYER_SELECT=0
 EOF
     start_source "$dir" || return
-    (cd "$dir" && PATH="$STUBS:$PATH" timeout 60 bash all-dual.sh > dual.log 2>&1) &
+    # DUAL_STRATEGY=independent: o stub de wpa_cli só expõe 1 interface p2p-dev (list_p2p_devs conta 1),
+    # e sem isso all-dual.sh cai no modo "grupo compartilhado" (exec ./all.sh) -- outro caminho de código,
+    # que não gera lazycast_instance_displayN/ nem as mensagens que este teste verifica. O teste quer o
+    # caminho de 2 instâncias independentes mesmo simulando só 1 adaptador.
+    (cd "$dir" && PATH="$STUBS:$PATH" DUAL_STRATEGY=independent timeout 60 bash all-dual.sh > dual.log 2>&1) &
     local dual_pid=$!
     source_result "$dir"; local src=$?
     sleep 1
