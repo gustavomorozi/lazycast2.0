@@ -87,6 +87,11 @@ fi
 # como mostrar o vídeo: janela/tela cheia (com monitor) ou sem janela (sem monitor); ver lib-p2p.sh
 setup_vlc_output 2
 
+# Fundo "Tela N - aguardando conexao" pras duas telas, direto na saida HDMI, enquanto nao ha vídeo de
+# verdade chegando (inclusive antes de qualquer negociação Miracast) -- ver fundo_supervisionar em lib-p2p.sh.
+fundo_supervisionar "$DISPLAY1_SCREEN" & fundo_pid1=$!
+fundo_supervisionar "$DISPLAY2_SCREEN" & fundo_pid2=$!
+
 # Função para iniciar uma instância do LazyCast
 start_display_instance() {
     local display_name=$1
@@ -255,12 +260,13 @@ EOF
 cleanup() {
     echo "Parando displays..."
     resume_networkmanager
-    kill $display1_pid $display2_pid 2>/dev/null
+    kill $display1_pid $display2_pid $fundo_pid1 $fundo_pid2 2>/dev/null
     # [fix] o kill acima só atinge o subshell; encerra também os filhos (d2.py, vlc, udhcpd)
     pkill -f "[d]2.py $DISPLAY1_DHCP_START" 2>/dev/null
     pkill -f "[d]2.py $DISPLAY2_DHCP_START" 2>/dev/null
     pkill -f "rtp://0.0.0.0:$DISPLAY1_RTP_PORT" 2>/dev/null
     pkill -f "rtp://0.0.0.0:$DISPLAY2_RTP_PORT" 2>/dev/null
+    pkill -f "video-title=LazyCast-Fundo-" 2>/dev/null
     sudo pkill -f "[u]dhcpd ./udhcpd_display" 2>/dev/null
     exit 0
 }
