@@ -71,7 +71,11 @@ class Handler(BaseHTTPRequestHandler):
         if updates.get('LAZYCAST_AUTH') == 'pin' and not backend.wps_checksum_ok(updates.get('LAZYCAST_PIN', '')):
             self._json(400, {'erro': 'PIN inválido (8 dígitos com checksum WPS).'})
             return
-        backend.save_config(updates)
+        try:
+            backend.save_config(updates)
+        except OSError as e:
+            self._json(500, {'erro': 'Não foi possível gravar a configuração: %s' % e})
+            return
         ok, msg = backend.service_action('restart')
         self._json(200, {'ok': ok, 'mensagem': msg, 'config': config_atual()})
 
