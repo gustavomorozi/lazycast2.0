@@ -85,6 +85,11 @@ class DriverHashTests(unittest.TestCase):
             self.assertIsNone(devcon)
 
 
+class DescobertaTests(unittest.TestCase):
+    def test_meu_ip_parece_um_ip(self):
+        self.assertTrue(lc.validar_ip(lc._meu_ip()))
+
+
 class ConfigPiMappingTests(unittest.TestCase):
     """Mapeamento texto-do-combo <-> valor gravado no lazycast-config.conf (seção 4 da janela)."""
 

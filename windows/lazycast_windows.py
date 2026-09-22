@@ -9,12 +9,14 @@ Compilado com PyInstaller em um .exe proprio (LazyCast.exe): resolve o pedido de
 "powershell.exe" no Gerenciador de Tarefas. So usa a biblioteca padrao do Python + pystray/Pillow
 (icone da bandeja) - nada de PowerShell nem de instalar nada a mais no Windows.
 """
+import concurrent.futures
 import ctypes
 import ctypes.wintypes as wt
 import hashlib
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -538,6 +540,52 @@ CONFIG_PORTA = 8765
 CAMPOS_CONFIG_PI = ('DISPLAY1_NAME', 'DISPLAY_MODE', 'LAZYCAST_AUTH', 'LAZYCAST_PIN', 'SCREEN1_SOURCE', 'SCREEN2_SOURCE')
 
 
+def _meu_ip():
+    """IP deste PC na rede local (sem abrir conexão de verdade: UDP 'connect' só resolve a rota)."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(('8.8.8.8', 80))
+        return s.getsockname()[0]
+    except OSError:
+        return '127.0.0.1'
+    finally:
+        s.close()
+
+
+def descobrir_pis(timeout=0.3, max_workers=48):
+    """Varre a rede local (mesmo /24 deste PC) procurando o servidor de configuração do LazyCast
+    (porta 8765): só acha Raspberry Pis com o LazyCast rodando, não qualquer dispositivo na rede.
+    Devolve [{'ip':..., 'nome':...}], mais rápido primeiro (ordem de resposta)."""
+    meu_ip = _meu_ip()
+    partes = meu_ip.split('.')
+    if len(partes) != 4:
+        return []
+    prefixo = '.'.join(partes[:3])
+    alvo = {f'{prefixo}.{i}' for i in range(1, 255)} - {meu_ip}
+
+    def checar(ip):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        try:
+            if s.connect_ex((ip, CONFIG_PORTA)) != 0:
+                return None
+        finally:
+            s.close()
+        try:
+            cfg = buscar_config_pi(ip)
+            return {'ip': ip, 'nome': cfg.get('DISPLAY1_NAME') or ip}
+        except (OSError, ValueError):
+            return {'ip': ip, 'nome': ip}
+
+    achados = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers) as ex:
+        for r in ex.map(checar, alvo):
+            if r:
+                achados.append(r)
+    achados.sort(key=lambda p: p['ip'])
+    return achados
+
+
 def buscar_config_pi(ip):
     """GET no servidor de configuração do Pi (config_server.py, mesma rede local, sem senha). Levanta
     excecao se o Pi nao responder (a chamada trata isso)."""
@@ -596,75 +644,81 @@ class App:
         self.btn_driver.grid(row=0, column=1, rowspan=2, padx=10)
         self.btn_desinst = ttk.Button(f1, text='Desinstalar driver', command=self.on_desinstalar_driver)
 
-        # ---- 2. Tela estendida
-        f2 = ttk.LabelFrame(root, text='2. Tela estendida para o Raspberry Pi (cabo ou Wi-Fi)')
+        # ---- 2. Raspberry Pi: descoberto na rede, escolhe e clica Conectar
+        self.pi_conectado = None      # {'ip':..., 'nome':...} só depois de Conectar dar certo
+        self._pis_lista = []
+        f2 = ttk.LabelFrame(root, text='2. Raspberry Pi')
         f2.grid(row=1, column=0, sticky='ew', **pad)
-        ttk.Label(f2, text='IP do Pi (cabo e/ou Wi-Fi, separados por virgula)').grid(row=0, column=0, sticky='w', padx=10, pady=(8, 0))
-        ttk.Label(f2, text='Telas virtuais').grid(row=0, column=1, sticky='w', padx=10, pady=(8, 0))
-        self.txt_ip = ttk.Entry(f2, width=32)
-        self.txt_ip.insert(0, ler(IP_FILE))
-        self.txt_ip.grid(row=1, column=0, sticky='w', padx=10)
-        self.cmb_n = ttk.Combobox(f2, values=['1', '2'], width=5, state='readonly')
+        ttk.Label(f2, text='Encontrados na rede (mesmo Wi-Fi/cabo deste PC):').grid(row=0, column=0, columnspan=2, sticky='w', padx=10, pady=(8, 0))
+        self.lst_pis = tk.Listbox(f2, height=3, width=44, exportselection=False)
+        self.lst_pis.grid(row=1, column=0, columnspan=2, sticky='w', padx=10, pady=(2, 6))
+        self.lst_pis.bind('<<ListboxSelect>>', self.on_selecionar_pi)
+        self.btn_pi_atualizar = ttk.Button(f2, text='Atualizar lista', command=self.on_atualizar_lista)
+        self.btn_pi_atualizar.grid(row=2, column=0, sticky='w', padx=10, pady=(0, 8))
+        self.btn_pi_conectar = ttk.Button(f2, text='Conectar', command=self.on_conectar_pi, state='disabled')
+        self.btn_pi_conectar.grid(row=2, column=1, sticky='w', padx=10, pady=(0, 8))
+        self.lbl_pi_conectado = ttk.Label(f2, text='Não conectado', foreground='#be2828')
+        self.lbl_pi_conectado.grid(row=3, column=0, columnspan=2, sticky='w', padx=10, pady=(0, 8))
+
+        # ---- 3. Tela estendida (só funciona conectado a um Pi)
+        f3 = ttk.LabelFrame(root, text='3. Tela estendida (cabo ou Wi-Fi)')
+        f3.grid(row=2, column=0, sticky='ew', **pad)
+        ttk.Label(f3, text='Telas virtuais a enviar').grid(row=0, column=0, sticky='w', padx=10, pady=(8, 0))
+        self.cmb_n = ttk.Combobox(f3, values=['1', '2'], width=5, state='readonly')
         self.cmb_n.set('2')
-        self.cmb_n.grid(row=1, column=1, sticky='w', padx=10)
-        self.btn_ligar = ttk.Button(f2, text='Ligar tela virtual', command=self.on_ligar)
+        self.cmb_n.grid(row=1, column=0, sticky='w', padx=10)
+        self.btn_ligar = ttk.Button(f3, text='Ligar tela virtual', command=self.on_ligar, state='disabled')
         self.btn_ligar.grid(row=2, column=0, sticky='w', padx=10, pady=10)
-        self.btn_desligar = ttk.Button(f2, text='Desligar', command=self.on_desligar)
+        self.btn_desligar = ttk.Button(f3, text='Desligar', command=self.on_desligar, state='disabled')
         self.btn_desligar.grid(row=2, column=1, sticky='w', padx=10, pady=10)
         self.var_remover = tk.BooleanVar()
-        ttk.Checkbutton(f2, text='Ao desligar, remover tambem os monitores do driver (so voltam apos reiniciar)',
+        ttk.Checkbutton(f3, text='Ao desligar, remover tambem os monitores do driver (so voltam apos reiniciar)',
                          variable=self.var_remover).grid(row=3, column=0, columnspan=2, sticky='w', padx=10, pady=(0, 8))
 
-        # ---- 3. Miracast
-        f3 = ttk.LabelFrame(root, text='3. Miracast (Transmitir do Windows)')
-        f3.grid(row=2, column=0, sticky='ew', **pad)
-        ttk.Label(f3, text='Nome do receptor no Pi (ex.: LazyCast-Gecko)').grid(row=0, column=0, sticky='w', padx=10, pady=(8, 0))
-        self.txt_nome = ttk.Entry(f3, width=32)
-        self.txt_nome.insert(0, ler(NOME_FILE))
-        self.txt_nome.grid(row=1, column=0, sticky='w', padx=10, pady=(0, 8))
-        ttk.Button(f3, text='Conectar', command=self.on_miracast).grid(row=1, column=1, padx=10)
-
-        # ---- 4. Configurações do Pi (buscadas/gravadas pela rede, sem SSH nem senha)
-        f4 = ttk.LabelFrame(root, text='4. Configurações do Pi (nome, PIN, fonte de cada tela)')
+        # ---- 4. Miracast (nome vem do Pi conectado; não duplica o campo da seção 5)
+        f4 = ttk.LabelFrame(root, text='4. Miracast (Transmitir do Windows)')
         f4.grid(row=3, column=0, sticky='ew', **pad)
-        ttk.Label(f4, text='Nome da rede').grid(row=0, column=0, sticky='w', padx=10, pady=(8, 0))
-        ttk.Label(f4, text='Telas no Pi').grid(row=0, column=1, sticky='w', padx=10, pady=(8, 0))
-        self.txt_pi_nome = ttk.Entry(f4, width=22)
+        ttk.Label(f4, text='Receptor (conecte a um Pi na seção 2)').grid(row=0, column=0, sticky='w', padx=10, pady=(8, 0))
+        self.txt_nome = ttk.Entry(f4, width=32, state='readonly')
+        self.txt_nome.grid(row=1, column=0, sticky='w', padx=10, pady=(0, 8))
+        ttk.Button(f4, text='Conectar', command=self.on_miracast).grid(row=1, column=1, padx=10)
+
+        # ---- 5. Configurações do Pi (só editável depois de Conectar na seção 2)
+        f5 = ttk.LabelFrame(root, text='5. Configurações do Pi (nome, PIN, fonte de cada tela)')
+        f5.grid(row=4, column=0, sticky='ew', **pad)
+        ttk.Label(f5, text='Nome da rede').grid(row=0, column=0, sticky='w', padx=10, pady=(8, 0))
+        ttk.Label(f5, text='Telas no Pi').grid(row=0, column=1, sticky='w', padx=10, pady=(8, 0))
+        self.txt_pi_nome = ttk.Entry(f5, width=22, state='disabled')
         self.txt_pi_nome.grid(row=1, column=0, sticky='w', padx=10)
-        self.cmb_pi_modo = ttk.Combobox(f4, values=['1', '2'], width=5, state='readonly')
-        self.cmb_pi_modo.set('2')
+        self.cmb_pi_modo = ttk.Combobox(f5, values=['1', '2'], width=5, state='disabled')
         self.cmb_pi_modo.grid(row=1, column=1, sticky='w', padx=10)
-        ttk.Label(f4, text='Tela 1 vem de').grid(row=2, column=0, sticky='w', padx=10, pady=(8, 0))
-        ttk.Label(f4, text='Tela 2 vem de').grid(row=2, column=1, sticky='w', padx=10, pady=(8, 0))
+        ttk.Label(f5, text='Tela 1 vem de').grid(row=2, column=0, sticky='w', padx=10, pady=(8, 0))
+        ttk.Label(f5, text='Tela 2 vem de').grid(row=2, column=1, sticky='w', padx=10, pady=(8, 0))
         fontes = ['auto (sem fio/Miracast)', 'stream:5004 (Windows, rede)', 'stream:5006 (Windows, rede)']
-        self.cmb_pi_fonte1 = ttk.Combobox(f4, values=fontes, width=24, state='readonly')
-        self.cmb_pi_fonte1.set(fontes[0])
+        self.cmb_pi_fonte1 = ttk.Combobox(f5, values=fontes, width=24, state='disabled')
         self.cmb_pi_fonte1.grid(row=3, column=0, sticky='w', padx=10)
-        self.cmb_pi_fonte2 = ttk.Combobox(f4, values=fontes, width=24, state='readonly')
-        self.cmb_pi_fonte2.set(fontes[0])
+        self.cmb_pi_fonte2 = ttk.Combobox(f5, values=fontes, width=24, state='disabled')
         self.cmb_pi_fonte2.grid(row=3, column=1, sticky='w', padx=10)
-        ttk.Label(f4, text='Conexão').grid(row=4, column=0, sticky='w', padx=10, pady=(8, 0))
-        self.cmb_pi_auth = ttk.Combobox(f4, values=['Sem PIN (mais fácil)', 'Com PIN'], width=18, state='readonly')
-        self.cmb_pi_auth.set('Sem PIN (mais fácil)')
+        ttk.Label(f5, text='Conexão').grid(row=4, column=0, sticky='w', padx=10, pady=(8, 0))
+        self.cmb_pi_auth = ttk.Combobox(f5, values=['Sem PIN (mais fácil)', 'Com PIN'], width=18, state='disabled')
         self.cmb_pi_auth.grid(row=5, column=0, sticky='w', padx=10)
-        self.txt_pi_pin = ttk.Entry(f4, width=12)
+        self.txt_pi_pin = ttk.Entry(f5, width=12, state='disabled')
         self.txt_pi_pin.grid(row=5, column=1, sticky='w', padx=10)
-        self.btn_pi_atualizar = ttk.Button(f4, text='Buscar do Pi', command=self.on_buscar_config_pi)
-        self.btn_pi_atualizar.grid(row=6, column=0, sticky='w', padx=10, pady=10)
-        self.btn_pi_salvar = ttk.Button(f4, text='Salvar no Pi', command=self.on_salvar_config_pi)
+        self.btn_pi_recarregar = ttk.Button(f5, text='Recarregar do Pi', command=self.on_recarregar_config_pi, state='disabled')
+        self.btn_pi_recarregar.grid(row=6, column=0, sticky='w', padx=10, pady=10)
+        self.btn_pi_salvar = ttk.Button(f5, text='Salvar no Pi', command=self.on_salvar_config_pi, state='disabled')
         self.btn_pi_salvar.grid(row=6, column=1, sticky='w', padx=10, pady=10)
 
         # ---- estado e log
         self.lbl_estado = ttk.Label(root, foreground='#666666')
-        self.lbl_estado.grid(row=4, column=0, sticky='w', padx=16, pady=(6, 0))
+        self.lbl_estado.grid(row=5, column=0, sticky='w', padx=16, pady=(6, 0))
         self.txt_log = tk.Text(root, width=64, height=10, state='disabled', font=('Consolas', 9))
-        self.txt_log.grid(row=5, column=0, sticky='ew', padx=16, pady=(4, 12))
+        self.txt_log.grid(row=6, column=0, sticky='ew', padx=16, pady=(4, 12))
 
         self.log('Pronto.')
         self.atualizar()
         self._timer()
-        if validar_ip(self._ip_pi()):
-            self.on_buscar_config_pi()  # busca as configurações do Pi automaticamente ao abrir
+        self.on_atualizar_lista()  # procura Pis na rede ao abrir; não conecta sozinho (só ao clicar Conectar)
 
     # ---- log/estado
     def log(self, msg):
@@ -678,13 +732,16 @@ class App:
     def ocupar(self, sim):
         self.ocupado = sim
         estado = 'disabled' if sim else 'normal'
-        for b in (self.btn_ligar, self.btn_desligar, self.btn_driver, self.btn_desinst):
+        for b in (self.btn_ligar, self.btn_desligar, self.btn_driver, self.btn_desinst,
+                  self.btn_pi_atualizar, self.btn_pi_conectar, self.btn_pi_recarregar, self.btn_pi_salvar):
             try:
                 b.configure(state=estado)
             except tk.TclError:
                 pass
         if not sim:
             self.atualizar()
+            # os botões/campos da seção do Pi voltam a refletir se está conectado (não ficam sempre 'normal')
+            (self._desbloquear_widgets() if self.pi_conectado else self._bloquear_widgets())
 
     def atualizar(self):
         t = transmitindo()
@@ -700,7 +757,7 @@ class App:
             self.lbl_driver_info.configure(text='Necessario para criar as telas virtuais.')
             self.btn_desinst.grid_remove()
             self.btn_driver.grid(row=0, column=1, rowspan=2, padx=10)
-        self.btn_ligar.configure(state=('disabled' if (self.ocupado or not di) else 'normal'))
+        self.btn_ligar.configure(state=('disabled' if (self.ocupado or not di or not self.pi_conectado) else 'normal'))
         if not self.ocupado:
             self.btn_desligar.configure(state=('normal' if (t > 0 or e > 0) else 'disabled'))
         self.lbl_estado.configure(text=f'Enviando: {t} fluxo(s)   |   Telas virtuais ativas: {e}')
@@ -723,8 +780,11 @@ class App:
 
     # ---- acoes dos botoes
     def on_ligar(self):
+        if not self.pi_conectado:
+            self.log('Conecte a um Raspberry Pi na seção 2 primeiro.')
+            return
         n = int(self.cmb_n.get())
-        ip = self.txt_ip.get().strip()
+        ip = self.pi_conectado['ip']
         self._rodar_bg(lambda: ligar(n, ip, self.log))
 
     def on_desligar(self):
@@ -747,20 +807,88 @@ class App:
         return resultado['v']
 
     def on_miracast(self):
-        miracast(self.txt_nome.get().strip(), self.log)
+        miracast(self.pi_conectado['nome'] if self.pi_conectado else '', self.log)
 
-    # ---- configurações do Pi (seção 4): busca ao abrir e sob pedido; grava com "Salvar no Pi"
+    # ---- seção 2 (lista de Pis) e seção 5 (configurações): só editável depois de "Conectar"
     _FONTES_TXT = ['auto (sem fio/Miracast)', 'stream:5004 (Windows, rede)', 'stream:5006 (Windows, rede)']
     _FONTES_RAW = ['auto', 'stream:5004', 'stream:5006']
     _AUTH_TXT = ['Sem PIN (mais fácil)', 'Com PIN']
     _AUTH_RAW = ['pbc', 'pin']
 
-    def _ip_pi(self):
-        ip = self.txt_ip.get().strip()
-        if ',' in ip or ';' in ip:
-            import re
-            ip = re.split(r'[,; ]+', ip)[0]
-        return ip
+    def _bg_leve(self, fn):
+        """Como _rodar_bg, mas sem mexer em Ligar/Desligar/driver (só a varredura da rede usa isso;
+        não deve travar os controles de uma sessão já conectada)."""
+        threading.Thread(target=fn, daemon=True).start()
+
+    def on_atualizar_lista(self):
+        self.btn_pi_atualizar.configure(state='disabled')
+        self.log('Procurando Raspberry Pi na rede...')
+
+        def fazer():
+            achados = descobrir_pis()
+            self.root.after(0, lambda: self._preencher_lista(achados))
+        self._bg_leve(fazer)
+
+    def _preencher_lista(self, achados):
+        self._pis_lista = achados
+        self.lst_pis.delete(0, 'end')
+        for p in achados:
+            self.lst_pis.insert('end', f"{p['nome']}  ({p['ip']})")
+        self.btn_pi_atualizar.configure(state='normal')
+        self.log(f'{len(achados)} Raspberry Pi encontrado(s) na rede.' if achados else
+                  'Nenhum Raspberry Pi com o LazyCast encontrado na rede (tente Atualizar lista de novo).')
+        # se o Pi da última vez está na lista, só realça (não conecta sozinho: precisa clicar Conectar)
+        ultimo = ler(IP_FILE)
+        for i, p in enumerate(achados):
+            if p['ip'] == ultimo:
+                self.lst_pis.selection_set(i)
+                self.lst_pis.see(i)
+                self.on_selecionar_pi(None)
+                break
+
+    def on_selecionar_pi(self, event):
+        sel = self.lst_pis.curselection()
+        if not sel:
+            self.btn_pi_conectar.configure(state='disabled')
+            return
+        escolhido = self._pis_lista[sel[0]]
+        self.btn_pi_conectar.configure(state='normal')
+        if not self.pi_conectado or self.pi_conectado['ip'] != escolhido['ip']:
+            self._bloquear_widgets()  # trocou de Pi na lista: precisa clicar Conectar de novo
+
+    def on_conectar_pi(self):
+        sel = self.lst_pis.curselection()
+        if not sel:
+            return
+        alvo = self._pis_lista[sel[0]]
+
+        def fazer():
+            try:
+                cfg = buscar_config_pi(alvo['ip'])
+            except (OSError, ValueError) as e:
+                self.log(f"Não consegui conectar a {alvo['ip']}: {e}")
+                return
+            nome = cfg.get('DISPLAY1_NAME') or alvo['nome']
+            self.pi_conectado = {'ip': alvo['ip'], 'nome': nome}
+            IP_FILE.write_text(alvo['ip'])
+            self.root.after(0, lambda: self._desbloquear_widgets(cfg))
+            self.log(f"Conectado a {nome} ({alvo['ip']}).")
+        self._rodar_bg(fazer)
+
+    def on_recarregar_config_pi(self):
+        if not self.pi_conectado:
+            return
+        ip = self.pi_conectado['ip']
+
+        def fazer():
+            try:
+                cfg = buscar_config_pi(ip)
+            except (OSError, ValueError) as e:
+                self.log(f'Não consegui buscar as configurações do Pi ({ip}): {e}')
+                return
+            self.root.after(0, lambda: self._preencher_config_pi(cfg))
+            self.log('Configurações do Pi atualizadas aqui.')
+        self._rodar_bg(fazer)
 
     def _preencher_config_pi(self, cfg):
         self.txt_pi_nome.delete(0, 'end')
@@ -774,28 +902,40 @@ class App:
         self.cmb_pi_auth.set(self._AUTH_TXT[self._AUTH_RAW.index(auth)] if auth in self._AUTH_RAW else self._AUTH_TXT[0])
         self.txt_pi_pin.delete(0, 'end')
         self.txt_pi_pin.insert(0, cfg.get('LAZYCAST_PIN', ''))
+        self.cmb_n.set(cfg.get('DISPLAY_MODE', '2'))  # sugestão: enviar o mesmo nº de telas que o Pi tem (editável)
 
-    def on_buscar_config_pi(self):
-        ip = self._ip_pi()
-        if not validar_ip(ip):
-            self.log('Informe o IP do Pi na seção 2 antes de buscar as configurações.')
-            return
+    def _bloquear_widgets(self):
+        self.pi_conectado = None
+        for w in (self.btn_pi_recarregar, self.btn_pi_salvar):
+            w.configure(state='disabled')
+        for w in (self.txt_pi_nome, self.cmb_pi_modo, self.cmb_pi_fonte1, self.cmb_pi_fonte2, self.cmb_pi_auth, self.txt_pi_pin):
+            w.configure(state='disabled')
+        self.txt_nome.configure(state='normal'); self.txt_nome.delete(0, 'end'); self.txt_nome.configure(state='readonly')
+        self.lbl_pi_conectado.configure(text='Não conectado', foreground='#be2828')
+        self.atualizar()  # Ligar também depende de pi_conectado
 
-        def fazer():
-            try:
-                cfg = buscar_config_pi(ip)
-            except (OSError, ValueError) as e:
-                self.log(f'Não consegui buscar as configurações do Pi ({ip}): {e}')
-                return
-            self.root.after(0, lambda: self._preencher_config_pi(cfg))
-            self.log('Configurações do Pi atualizadas aqui.')
-        self._rodar_bg(fazer)
+    def _desbloquear_widgets(self, cfg=None):
+        for w in (self.btn_pi_recarregar, self.btn_pi_salvar):
+            w.configure(state='normal')
+        for w in (self.txt_pi_nome, self.txt_pi_pin):
+            w.configure(state='normal')
+        for w in (self.cmb_pi_modo, self.cmb_pi_fonte1, self.cmb_pi_fonte2, self.cmb_pi_auth):
+            w.configure(state='readonly')
+        if cfg:
+            self._preencher_config_pi(cfg)
+        if self.pi_conectado:
+            self.txt_nome.configure(state='normal')
+            self.txt_nome.delete(0, 'end')
+            self.txt_nome.insert(0, self.pi_conectado['nome'])
+            self.txt_nome.configure(state='readonly')
+            self.lbl_pi_conectado.configure(text=f"Conectado a {self.pi_conectado['nome']} ({self.pi_conectado['ip']})",
+                                             foreground='#1e8236')
+        self.atualizar()
 
     def on_salvar_config_pi(self):
-        ip = self._ip_pi()
-        if not validar_ip(ip):
-            self.log('Informe o IP do Pi na seção 2 antes de salvar.')
+        if not self.pi_conectado:
             return
+        ip = self.pi_conectado['ip']
         campos = {
             'DISPLAY1_NAME': self.txt_pi_nome.get().strip(),
             'DISPLAY_MODE': self.cmb_pi_modo.get() or '1',
@@ -808,6 +948,8 @@ class App:
         def fazer():
             self.log('Salvando no Pi (ele reinicia o serviço sozinho)...')
             ok, msg = gravar_config_pi(ip, campos)
+            if ok:
+                self.pi_conectado['nome'] = campos['DISPLAY1_NAME']
             self.log('Configurações salvas no Pi.' if ok else f'Não consegui salvar no Pi: {msg}')
         self._rodar_bg(fazer)
 
